@@ -492,25 +492,25 @@ export function getGroupCharacterCards(groupId, characterId) {
         }
 
         const tag = isActiveChar ? 'active_character' : 'character';
-        let content = `<${tag} name="${character.name}">\n`;
+        let content = `<${tag} name="${character.name}">`;
 
         if (character.personality?.trim()) {
-            content += `<personality>${character.personality.trim()}</personality>\n`;
+            content += `<personality>${character.personality.trim()}</personality>`;
         }
 
         if (character.description?.trim()) {
-            content += `<description>${character.description.trim()}</description>\n`;
+            content += `<description>${character.description.trim()}</description>`;
         }
 
         if (character.mes_example?.trim()) {
-            content += `<message_examples>${character.mes_example.startsWith('<START>') ? `<START>\n${character.mes_example.trim()}` : character.mes_example.trim()}</message_examples>\n`;
+            content += `<message_examples>${character.mes_example.startsWith('<START>') ? `<START>\n${character.mes_example.trim()}` : character.mes_example.trim()}</message_examples>`;
         }
 
         if (character.data) {
-            content += character.data.post_history_instructions?.trim() ? `<backstory>${character.data.post_history_instructions.trim()}</backstory>\n` : '';
+            content += character.data.post_history_instructions?.trim() ? `<backstory>${character.data.post_history_instructions.trim()}</backstory>` : '';
 
             if (isActiveChar && character.data.system_prompt?.trim()) {
-                content += `<life_story>${character.data.system_prompt.trim()}</life_story>\n`;
+                content += `<life_story>${character.data.system_prompt.trim()}</life_story>`;
             }
         }
 
@@ -523,7 +523,7 @@ export function getGroupCharacterCards(groupId, characterId) {
     let personalities = [];
     let scenarios = [];
     let mesExamplesArray = [];
-    let combinedCharacters = `<characters>\n`;
+    let combinedCharacters = `<characters>`;
     let activeChar = null;
     let activeCharContent = null;
 
