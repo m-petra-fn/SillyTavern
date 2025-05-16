@@ -531,6 +531,12 @@
                 "marker": true
             },
             {
+                "identifier": "combinedCharacters",
+                "name": "Combined Characters",
+                "system_prompt": true,
+                "marker": true
+            },
+            {
                 "identifier": "activeCharContent",
                 "name": "Active Char",
                 "system_prompt": true,

@@ -423,7 +423,7 @@ export function getGroupDepthPrompts(groupId, characterId) {
  * Combines group members cards into a single string. Only for groups with generation mode set to APPEND or APPEND_DISABLED.
  * @param {string} groupId Group ID
  * @param {number} characterId Current Character ID
- * @returns {{description: string, personality: string, scenario: string, mesExamples: string, activeCharContent: string}} Group character cards combined
+ * @returns {{description: string, personality: string, scenario: string, mesExamples: string, activeCharContent: string, combinedCharacters: string}} Group character cards combined
  */
 export function getGroupCharacterCards(groupId, characterId) {
     console.debug('getGroupCharacterCards entered for group: ', groupId);
@@ -480,21 +480,56 @@ export function getGroupCharacterCards(groupId, characterId) {
         return `${prefix}${value}${suffix}`;
     }
 
+    /**
+     * Fills the character profile with the provided content
+     * @param {import ('./char-data.js').v1CharData} character Content to fill
+     * @param {boolean} isActiveChar Whether the character is active
+     * @returns {string} Filled content
+    **/
+    function fillCharacterProfile(character, isActiveChar = false) {
+        if (!character) {
+            return '';
+        }
+
+        const tag = isActiveChar ? 'active_character' : 'character';
+        let content = `<${tag} name="${character.name}">\n`;
+
+        if (character.personality?.trim()) {
+            content += `<personality>${character.personality.trim()}</personality>\n`;
+        }
+
+        if (character.description?.trim()) {
+            content += `<description>${character.description.trim()}</description>\n`;
+        }
+
+        if (character.mes_example?.trim()) {
+            content += `<message_examples>${character.mes_example.startsWith('<START>') ? `<START>\n${character.mes_example.trim()}` : character.mes_example.trim()}</message_examples>\n`;
+        }
+
+        if (character.data) {
+            content += character.data.post_history_instructions?.trim() ? `<backstory>${character.data.post_history_instructions.trim()}</backstory>\n` : '';
+
+            if (isActiveChar && character.data.system_prompt?.trim()) {
+                content += `<life_story>${character.data.system_prompt.trim()}</life_story>\n`;
+            }
+        }
+
+        return content + `</${tag}>`;
+    }
+
     const scenarioOverride = chat_metadata['scenario'];
 
     let descriptions = [];
     let personalities = [];
     let scenarios = [];
     let mesExamplesArray = [];
-    let combinedCharacters = [];
+    let combinedCharacters = `<characters>\n`;
     let activeChar = null;
     let activeCharContent = null;
 
     for (const member of group.members) {
         const index = characters.findIndex(x => x.avatar === member);
         const character = characters[index];
-        console.log(`Processing group member: ${member} (${index})`);
-
 
         if (index === -1 || !character) {
             console.debug(`Skipping missing member: ${member}`);
@@ -520,6 +555,11 @@ export function getGroupCharacterCards(groupId, characterId) {
         personalities.push(replaceAndPrepareForJoin(character.personality, character.name, 'Personality'));
         scenarios.push(replaceAndPrepareForJoin(character.scenario, character.name, 'Scenario'));
         mesExamplesArray.push(replaceAndPrepareForJoin(character.mes_example, character.name, 'Example Messages', (x) => !x.startsWith('<START>') ? `<START>\n${x}` : x));
+
+        if (group.generation_mode === group_generation_mode.SEPARATE_LIST) {
+            combinedCharacters += fillCharacterProfile(character, false);
+        }
+
     }
 
     const description = descriptions.filter(x => x.length).join('\n');
@@ -528,29 +568,12 @@ export function getGroupCharacterCards(groupId, characterId) {
     const mesExamples = mesExamplesArray.filter(x => x.length).join('\n');
 
     if (group.generation_mode === group_generation_mode.SEPARATE_LIST) {
-
         if (activeChar) {
-            let content = '';
-
-            if (activeChar.description) {
-                content += `<activeCharacter_description>${activeChar.description}</activeCharacter_description>\n`;
-            }
-            if (activeChar.personality) {
-                content += `<activeCharacter_personality>${activeChar.personality}</activeCharacter_personality>\n`;
-            }
-            if (activeChar.scenario) {
-                content += `<activeCharacter_scenario>${activeChar.scenario}</activeCharacter_scenario>\n`;
-            }
-
-            if (activeChar.mes_example) {
-                content += `<activeCharacter_mes_examples>${activeChar.mes_example.startsWith('<START>') ? `<START>\n${activeChar.mes_example}` : activeChar.mes_example}</activeCharacter_mes_examples>\n`;
-            }
-
-            activeCharContent = content;
+            activeCharContent = fillCharacterProfile(activeChar, true);
         }
     }
 
-    return { description, personality, scenario, mesExamples, activeCharContent };
+    return { description, personality, scenario, mesExamples, activeCharContent, combinedCharacters: combinedCharacters + '</characters>\n' };
 }
 
 async function getFirstCharacterMessage(character) {

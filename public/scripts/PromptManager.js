@@ -203,6 +203,7 @@ class PromptManager {
             charDescription: t`Character Description`,
             charPersonality: t`Character Personality`,
             activeCharContent: t`Active Char Content`,
+            combinedCharacters: t`Combined Characters`,
             scenario: t`Character Scenario`,
             personaDescription: t`Persona Description`,
             worldInfoBefore: t`World Info (↑Char)`,
@@ -957,6 +958,7 @@ class PromptManager {
             'charDescription',
             'charPersonality',
             'activeCharContent',
+            'combinedCharacters',
             'scenario',
             'personaDescription',
             'worldInfoBefore',
@@ -975,6 +977,7 @@ class PromptManager {
             'charDescription',
             'charPersonality',
             'activeCharContent',
+            'combinedCharacters',
             'scenario',
             'personaDescription',
             'worldInfoBefore',
@@ -1915,6 +1918,12 @@ const chatCompletionDefaultPrompts = {
             'marker': true,
         },
         {
+            'identifier': 'combinedCharacters',
+            'name': 'Combined Characters',
+            'system_prompt': true,
+            'marker': true
+        },
+        {
             'identifier': 'activeCharContent',
             'name': 'Active Char',
             'system_prompt': true,
@@ -1958,6 +1967,10 @@ const promptManagerDefaultPromptOrder = [
     },
     {
         'identifier': 'charPersonality',
+        'enabled': true,
+    },
+    {
+        'identifier': 'combinedCharacters',
         'enabled': true,
     },
     {
