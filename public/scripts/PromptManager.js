@@ -202,6 +202,7 @@ class PromptManager {
         return {
             charDescription: t`Character Description`,
             charPersonality: t`Character Personality`,
+            activeCharContent: t`Active Char Content`,
             scenario: t`Character Scenario`,
             personaDescription: t`Persona Description`,
             worldInfoBefore: t`World Info (↑Char)`,
@@ -955,6 +956,7 @@ class PromptManager {
         const forceEditPrompts = [
             'charDescription',
             'charPersonality',
+            'activeCharContent',
             'scenario',
             'personaDescription',
             'worldInfoBefore',
@@ -972,6 +974,7 @@ class PromptManager {
         const forceTogglePrompts = [
             'charDescription',
             'charPersonality',
+            'activeCharContent',
             'scenario',
             'personaDescription',
             'worldInfoBefore',
@@ -1912,6 +1915,12 @@ const chatCompletionDefaultPrompts = {
             'marker': true,
         },
         {
+            'identifier': 'activeCharContent',
+            'name': 'Active Char',
+            'system_prompt': true,
+            'marker': true
+        },
+        {
             'identifier': 'scenario',
             'name': 'Scenario',
             'system_prompt': true,
@@ -1949,6 +1958,10 @@ const promptManagerDefaultPromptOrder = [
     },
     {
         'identifier': 'charPersonality',
+        'enabled': true,
+    },
+    {
+        'identifier': 'activeCharContent',
         'enabled': true,
     },
     {

@@ -1075,6 +1075,7 @@ async function populateChatCompletion(prompts, chatCompletion, { bias, quietProm
     await addToChatCompletion('worldInfoAfter');
     await addToChatCompletion('charDescription');
     await addToChatCompletion('charPersonality');
+    await addToChatCompletion('activeCharContent');
     await addToChatCompletion('scenario');
     await addToChatCompletion('personaDescription');
 
@@ -1210,6 +1211,7 @@ async function populateChatCompletion(prompts, chatCompletion, { bias, quietProm
  * @param {Object} options - An object with optional settings.
  * @param {string} options.scenario - The scenario or context of the dialogue.
  * @param {string} options.charPersonality - Description of the character's personality.
+ * @param {string} options.activeCharContent - The content of the active character.
  * @param {string} options.name2 - The second name to be used in the messages.
  * @param {string} options.worldInfoBefore - The world info to be added before the main conversation.
  * @param {string} options.worldInfoAfter - The world info to be added after the main conversation.
@@ -1222,7 +1224,7 @@ async function populateChatCompletion(prompts, chatCompletion, { bias, quietProm
  * @param {string} options.personaDescription
  * @returns {Promise<Object>} prompts - The prepared and merged system and user-defined prompts.
  */
-async function preparePromptsForChatCompletion({ scenario, charPersonality, name2, worldInfoBefore, worldInfoAfter, charDescription, quietPrompt, bias, extensionPrompts, systemPromptOverride, jailbreakPromptOverride, personaDescription }) {
+async function preparePromptsForChatCompletion({ scenario, charPersonality, activeCharContent, name2, worldInfoBefore, worldInfoAfter, charDescription, quietPrompt, bias, extensionPrompts, systemPromptOverride, jailbreakPromptOverride, personaDescription }) {
     const scenarioText = scenario && oai_settings.scenario_format ? substituteParams(oai_settings.scenario_format) : '';
     const charPersonalityText = charPersonality && oai_settings.personality_format ? substituteParams(oai_settings.personality_format) : '';
     const groupNudge = substituteParams(oai_settings.group_nudge_prompt);
@@ -1235,6 +1237,7 @@ async function preparePromptsForChatCompletion({ scenario, charPersonality, name
         { role: 'system', content: formatWorldInfo(worldInfoAfter), identifier: 'worldInfoAfter' },
         { role: 'system', content: charDescription, identifier: 'charDescription' },
         { role: 'system', content: charPersonalityText, identifier: 'charPersonality' },
+        { role: 'system', content: activeCharContent, identifier: 'activeCharContent' },
         { role: 'system', content: scenarioText, identifier: 'scenario' },
         // Unordered prompts without marker
         { role: 'system', content: impersonationPrompt, identifier: 'impersonate' },
@@ -1381,6 +1384,7 @@ async function preparePromptsForChatCompletion({ scenario, charPersonality, name
  * @param {string} content.name2 - The second name to be used in the messages.
  * @param {string} content.charDescription - Description of the character.
  * @param {string} content.charPersonality - Description of the character's personality.
+ * @param {string} content.activeCharContent - The active character content.
  * @param {string} content.scenario - The scenario or context of the dialogue.
  * @param {string} content.worldInfoBefore - The world info to be added before the main conversation.
  * @param {string} content.worldInfoAfter - The world info to be added after the main conversation.
@@ -1402,6 +1406,7 @@ export async function prepareOpenAIMessages({
     name2,
     charDescription,
     charPersonality,
+    activeCharContent,
     scenario,
     worldInfoBefore,
     worldInfoAfter,
@@ -1431,6 +1436,7 @@ export async function prepareOpenAIMessages({
         const prompts = await preparePromptsForChatCompletion({
             scenario,
             charPersonality,
+            activeCharContent,
             name2,
             worldInfoBefore,
             worldInfoAfter,

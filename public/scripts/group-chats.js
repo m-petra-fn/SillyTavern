@@ -123,6 +123,7 @@ export const group_generation_mode = {
     SWAP: 0,
     APPEND: 1,
     APPEND_DISABLED: 2,
+    SEPARATE_LIST: 3,
 };
 
 const DEFAULT_AUTO_MODE_DELAY = 5;
@@ -422,7 +423,7 @@ export function getGroupDepthPrompts(groupId, characterId) {
  * Combines group members cards into a single string. Only for groups with generation mode set to APPEND or APPEND_DISABLED.
  * @param {string} groupId Group ID
  * @param {number} characterId Current Character ID
- * @returns {{description: string, personality: string, scenario: string, mesExamples: string}} Group character cards combined
+ * @returns {{description: string, personality: string, scenario: string, mesExamples: string, activeCharContent: string}} Group character cards combined
  */
 export function getGroupCharacterCards(groupId, characterId) {
     console.debug('getGroupCharacterCards entered for group: ', groupId);
@@ -485,17 +486,32 @@ export function getGroupCharacterCards(groupId, characterId) {
     let personalities = [];
     let scenarios = [];
     let mesExamplesArray = [];
+    let combinedCharacters = [];
+    let activeChar = null;
+    let activeCharContent = null;
 
     for (const member of group.members) {
         const index = characters.findIndex(x => x.avatar === member);
         const character = characters[index];
+        console.log(`Processing group member: ${member} (${index})`);
+
 
         if (index === -1 || !character) {
             console.debug(`Skipping missing member: ${member}`);
             continue;
         }
 
-        if (group.disabled_members.includes(member) && characterId !== index && group.generation_mode !== group_generation_mode.APPEND_DISABLED) {
+        if (group.generation_mode === group_generation_mode.SEPARATE_LIST && characterId === index) {
+            activeChar = character;
+            console.debug(`Skipping active character: ${member}`);
+            continue;
+        }
+
+        if (
+            group.disabled_members.includes(member)
+            && characterId !== index
+            && [group_generation_mode.APPEND_DISABLED, group_generation_mode.SEPARATE_LIST].includes(group.generation_mode)
+        ) {
             console.debug(`Skipping disabled group member: ${member}`);
             continue;
         }
@@ -511,7 +527,30 @@ export function getGroupCharacterCards(groupId, characterId) {
     const scenario = scenarioOverride?.trim() || scenarios.filter(x => x.length).join('\n');
     const mesExamples = mesExamplesArray.filter(x => x.length).join('\n');
 
-    return { description, personality, scenario, mesExamples };
+    if (group.generation_mode === group_generation_mode.SEPARATE_LIST) {
+
+        if (activeChar) {
+            let content = '';
+
+            if (activeChar.description) {
+                content += `<activeCharacter_description>${activeChar.description}</activeCharacter_description>\n`;
+            }
+            if (activeChar.personality) {
+                content += `<activeCharacter_personality>${activeChar.personality}</activeCharacter_personality>\n`;
+            }
+            if (activeChar.scenario) {
+                content += `<activeCharacter_scenario>${activeChar.scenario}</activeCharacter_scenario>\n`;
+            }
+
+            if (activeChar.mes_example) {
+                content += `<activeCharacter_mes_examples>${activeChar.mes_example.startsWith('<START>') ? `<START>\n${activeChar.mes_example}` : activeChar.mes_example}</activeCharacter_mes_examples>\n`;
+            }
+
+            activeCharContent = content;
+        }
+    }
+
+    return { description, personality, scenario, mesExamples, activeCharContent };
 }
 
 async function getFirstCharacterMessage(character) {
@@ -1530,7 +1569,7 @@ async function onHideMutedSpritesClick(value) {
 }
 
 function toggleHiddenControls(group, generationMode = null) {
-    const isJoin = [group_generation_mode.APPEND, group_generation_mode.APPEND_DISABLED].includes(generationMode ?? group?.generation_mode);
+    const isJoin = [group_generation_mode.APPEND, group_generation_mode.APPEND_DISABLED, group_generation_mode.SEPARATE_LIST].includes(generationMode ?? group?.generation_mode);
     $('#rm_group_generation_mode_join_prefix').parent().toggle(isJoin);
     $('#rm_group_generation_mode_join_suffix').parent().toggle(isJoin);
 

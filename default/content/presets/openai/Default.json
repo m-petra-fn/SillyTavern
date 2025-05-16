@@ -109,6 +109,12 @@
             "marker": true
         },
         {
+            "identifier": "activeCharContent",
+            "name": "Active Char",
+            "system_prompt": true,
+            "marker": true
+        },
+        {
             "identifier": "scenario",
             "name": "Scenario",
             "system_prompt": true,
