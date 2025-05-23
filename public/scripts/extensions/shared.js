@@ -15,7 +15,7 @@ import { createThumbnail, isValidUrl } from '../utils.js';
  */
 export async function getMultimodalCaption(base64Img, prompt) {
     const useReverseProxy =
-        (['openai', 'anthropic', 'google', 'mistral', 'vertexai'].includes(extension_settings.caption.multimodal_api))
+        (['openai', 'anthropic', 'google', 'mistral', 'vertexai', 'xai'].includes(extension_settings.caption.multimodal_api))
         && extension_settings.caption.allow_reverse_proxy
         && oai_settings.reverse_proxy
         && isValidUrl(oai_settings.reverse_proxy);
@@ -157,7 +157,7 @@ function throwIfInvalidModel(useReverseProxy) {
         throw new Error('Cohere API key is not set.');
     }
 
-    if (extension_settings.caption.multimodal_api === 'xai' && !secret_state[SECRET_KEYS.XAI]) {
+    if (extension_settings.caption.multimodal_api === 'xai' && !secret_state[SECRET_KEYS.XAI] && !useReverseProxy) {
         throw new Error('xAI API key is not set.');
     }
 

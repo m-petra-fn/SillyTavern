@@ -4441,6 +4441,8 @@ function getMistralMaxContext(model, isUnlocked) {
         'mistral-tiny-2312': 32768,
         'open-mistral-7b': 32768,
         'open-mixtral-8x7b': 32768,
+        'devstral-small-2505': 131072,
+        'devstral-small-latest': 131072,
     };
 
     // Return context size if model found, otherwise default to 32k
