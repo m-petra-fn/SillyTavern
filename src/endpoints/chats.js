@@ -411,7 +411,7 @@ export async function getChatInfo(pathToFile, additionalData = {}, isGroup = fal
                 const jsonData = tryParse(lastLine);
                 if (jsonData && (jsonData.name || jsonData.character_name)) {
                     chatData.chat_items = isGroup ? itemCounter : (itemCounter - 1);
-                    chatData.mes = jsonData['mes'] || '[The chat is empty]';
+                    chatData.mes = jsonData['mes'] || '[The message is empty]';
                     chatData.last_mes = jsonData['send_date'] || stats.mtimeMs;
 
                     res(chatData);

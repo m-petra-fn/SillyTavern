@@ -4286,8 +4286,8 @@
                                                     <span data-i18n="Budget Cap">Budget Cap</span>
                                                     <div class="fa-solid fa-circle-info opacity50p" data-i18n="[title](0 = disabled)" title="(0 = disabled)"></div>
                                                 </small>
-                                                <input class="neo-range-slider" type="range" id="world_info_budget_cap" name="world_info_budget_cap" min="0" max="8192" step="1">
-                                                <input class="neo-range-input" type="number" min="0" max="8192" step="1" data-for="world_info_budget_cap" id="world_info_budget_cap_counter">
+                                                <input class="neo-range-slider" type="range" id="world_info_budget_cap" name="world_info_budget_cap" min="0" max="65536" step="1">
+                                                <input class="neo-range-input" type="number" min="0" max="65536" step="1" data-for="world_info_budget_cap" id="world_info_budget_cap_counter">
                                             </div>
 
                                             <div class="alignitemscenter flex-container flexFlowColumn flexGrow flexShrink gap0 flexBasis48p" title="Scan chronologically until reached min entries or token budget." data-i18n="[title]Scan chronologically until reached min entries or token budget.">
@@ -5041,6 +5041,14 @@
                                     <div class="fa-solid fa-circle-chevron-down inline-drawer-icon down"></div>
                                 </div>
                                 <div class="inline-drawer-content">
+                                    <label for="stscript_autocomplete_state">
+                                        <small data-i18n="Visibility">Visibility</small>
+                                    </label>
+                                    <select id="stscript_autocomplete_state">
+                                        <option value="0" data-i18n="Don't show">Don't show</option>
+                                        <option value="1" data-i18n="Input length > 1">Input length > 1</option>
+                                        <option value="2" data-i18n="Always show">Always show</option>
+                                    </select>
                                     <label class="checkbox_label" for="stscript_autocomplete_autoHide">
                                         <input id="stscript_autocomplete_autoHide" type="checkbox" />
                                         <small data-i18n="Automatically hide details">
