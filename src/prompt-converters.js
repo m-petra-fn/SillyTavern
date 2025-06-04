@@ -906,8 +906,9 @@ export function cachingAtDepthForClaude(messages, cachingAtDepth, ttl) {
  * messages array.
  * @param {object[]} messages Array of messages
  * @param {number} cachingAtDepth Depth at which caching is supposed to occur
+ * @param {string} ttl TTL value
  */
-export function cachingAtDepthForOpenRouterClaude(messages, cachingAtDepth) {
+export function cachingAtDepthForOpenRouterClaude(messages, cachingAtDepth, ttl) {
     //caching the prefill is a terrible idea in general
     let passedThePrefill = false;
     //depth here is the number of message role switches
@@ -927,12 +928,13 @@ export function cachingAtDepthForOpenRouterClaude(messages, cachingAtDepth) {
                     messages[i].content = [{
                         type: 'text',
                         text: content,
-                        cache_control: { type: 'ephemeral' },
+                        cache_control: { type: 'ephemeral', ttl: ttl },
                     }];
                 } else {
                     const contentPartCount = content.length;
                     content[contentPartCount - 1].cache_control = {
                         type: 'ephemeral',
+                        ttl: ttl,
                     };
                 }
             }
