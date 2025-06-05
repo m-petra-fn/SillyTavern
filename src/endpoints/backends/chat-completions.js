@@ -414,7 +414,6 @@ async function sendMakerSuiteRequest(request, response) {
         ];
 
         const isThinkingConfigModel = m => /^gemini-2.5-(flash|pro)/.test(m);
-        const isThinkingBudgetModel = m => /^gemini-2.5-flash/.test(m);
 
         const noSearchModels = [
             'gemini-2.0-flash-lite',
@@ -470,11 +469,9 @@ async function sendMakerSuiteRequest(request, response) {
         if (isThinkingConfigModel(model)) {
             const thinkingConfig = { includeThoughts: includeReasoning };
 
-            if (isThinkingBudgetModel(model)) {
-                const thinkingBudget = calculateGoogleBudgetTokens(generationConfig.maxOutputTokens, reasoningEffort);
-                if (Number.isInteger(thinkingBudget)) {
-                    thinkingConfig.thinkingBudget = thinkingBudget;
-                }
+            const thinkingBudget = calculateGoogleBudgetTokens(generationConfig.maxOutputTokens, reasoningEffort, model);
+            if (Number.isInteger(thinkingBudget)) {
+                thinkingConfig.thinkingBudget = thinkingBudget;
             }
 
             generationConfig.thinkingConfig = thinkingConfig;
