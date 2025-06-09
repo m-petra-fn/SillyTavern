@@ -2529,7 +2529,16 @@ export function parseRegexFromString(input) {
     }
 }
 
-//MARK: getWorldEntry
+/**
+ * Enables the input helper for keys in a World Info entry.
+ * @param {object} params - Parameters for enabling the keys input helper.
+ * @param {JQuery<HTMLElement>} params.template - The template element containing the input.
+ * @param {object} params.entry - The entry object containing the keys.
+ * @param {string} params.entryPropName - The property name of the entry that holds the keys.
+ * @param {string} params.originalDataValueName - The name of the original data value to be set.
+ * @param {string} params.name - The name of the world info entry.
+ * @param {object} params.data - The data object containing entries.
+ */
 function enableKeysInputHelper({ template, entry, entryPropName, originalDataValueName, name, data }) {
     const isFancyInput = !isMobile() && !power_user.wi_key_input_plaintext;
     const input = isFancyInput ? template.find(`select[name="${entryPropName}"]`) : template.find(`textarea[name="${entryPropName}"]`);
@@ -2625,6 +2634,12 @@ function enableKeysInputHelper({ template, entry, entryPropName, originalDataVal
 
 /**
  * Helper to handle match checkboxes for WI entries.
+ * @param {object} params - Parameters for handling match checkboxes.
+ * @param {JQuery<HTMLElement>} params.template - The template element containing the checkbox.
+ * @param {object} params.entry - The entry object containing the checkbox state.
+ * @param {string} params.fieldName - The name of the checkbox field.
+ * @param {object} params.data - The data object containing entries.
+ * @param {string} params.name - The name of the world info to save changes to.
  */
 function handleMatchCheckboxHelper({ template, entry, fieldName, data, name }) {
     const key = originalWIDataKeyMap[fieldName];
@@ -2642,6 +2657,10 @@ function handleMatchCheckboxHelper({ template, entry, fieldName, data, name }) {
 
 /**
  * Helper to update position/order display.
+ * @param {object} params - Parameters for updating position/order display.
+ * @param {JQuery<HTMLElement>} params.template - The template element containing the display.
+ * @param {object} params.data - The data object containing entries.
+ * @param {string} params.uid - The unique identifier of the entry to update.
  */
 function updatePosOrdDisplayHelper({ template, data, uid }) {
     let entry = data.entries[uid];
@@ -2658,8 +2677,9 @@ function updatePosOrdDisplayHelper({ template, data, uid }) {
 
 /**
  * Helper to initialize character filter select2.
+ * @param {JQuery<HTMLElement>} characterFilter - The select element for character filter.
  */
-function initCharacterFilterSelect2Helper(characterFilter, t) {
+function initCharacterFilterSelect2Helper(characterFilter) {
     if (!isMobile()) {
         $(characterFilter).select2({
             width: '100%',
@@ -2672,8 +2692,11 @@ function initCharacterFilterSelect2Helper(characterFilter, t) {
 
 /**
  * Helper to fill character and tag options for character filter.
+ * @param {object} params - Parameters for filling options.
+ * @param {JQuery<HTMLElement>} params.characterFilter - The select element to fill with options.
+ * @param {object} params.entry - The entry object containing character filter data.
  */
-function fillCharacterAndTagOptionsHelper({ characterFilter, entry, getContext }) {
+function fillCharacterAndTagOptionsHelper({ characterFilter, entry }) {
     const characters = getContext().characters;
     characters.forEach((character) => {
         const option = document.createElement('option');
@@ -2696,8 +2719,13 @@ function fillCharacterAndTagOptionsHelper({ characterFilter, entry, getContext }
 
 /**
  * Helper to handle character filter changes.
+ * @param {object} params - Parameters for handling character filter changes.
+ * @param {JQuery<HTMLElement>} params.characterFilter - The select element for character filter.
+ * @param {object} params.data - The data object containing entries.
+ * @param {object} params.entry - The entry object to update.
+ * @param {string} params.name - The name of the world info to save changes to.
  */
-function handleCharacterFilterChangeHelper({ characterFilter, data, entry, name, world_names, getContext, setWIOriginalDataValue, saveWorldInfo, t }) {
+function handleCharacterFilterChangeHelper({ characterFilter, data, entry, name }) {
     characterFilter.on('mousedown change', async function (e) {
         if (world_names.length === 0) {
             e.preventDefault();
@@ -2728,8 +2756,13 @@ function handleCharacterFilterChangeHelper({ characterFilter, data, entry, name,
 
 /**
  * Helper to handle probability input.
+ * @param {object} params - Parameters for handling probability input.
+ * @param {JQuery<HTMLElement>} params.probabilityInput - The input element for probability.
+ * @param {object} params.data - The data object containing entries.
+ * @param {object} params.entry - The entry object to update.
+ * @param {string} params.name - The name of the world info to save changes to.
  */
-function handleProbabilityInputHelper({ probabilityInput, data, entry, name, setWIOriginalDataValue, saveWorldInfo }) {
+function handleProbabilityInputHelper({ probabilityInput, data, entry, name }) {
     probabilityInput.data('uid', entry.uid);
     probabilityInput.on('input', async function (_, { noSave = false } = {}) {
         const uid = $(this).data('uid');
@@ -2750,8 +2783,14 @@ function handleProbabilityInputHelper({ probabilityInput, data, entry, name, set
 
 /**
  * Helper to handle probability toggle.
+ * @param {object} params - Parameters for handling probability toggle.
+ * @param {JQuery<HTMLElement>} params.probabilityToggle - The toggle element for probability.
+ * @param {object} params.data - The data object containing entries.
+ * @param {object} params.entry - The entry object to update.
+ * @param {string} params.name - The name of the world info to save changes to.
+ * @param {JQuery<HTMLElement>} params.probabilityInput - The input element for probability.
  */
-function handleProbabilityToggleHelper({ probabilityToggle, data, entry, name, probabilityInput, setWIOriginalDataValue, saveWorldInfo }) {
+function handleProbabilityToggleHelper({ probabilityToggle, data, entry, name, probabilityInput }) {
     probabilityToggle.data('uid', entry.uid);
     probabilityToggle.on('input', async function (_, { noSave = false } = {}) {
         const uid = $(this).data('uid');
@@ -2774,8 +2813,14 @@ function handleProbabilityToggleHelper({ probabilityToggle, data, entry, name, p
 
 /**
  * Helper to handle select2 dropdowns for boolean selects.
+ * @param {object} params - Parameters for handling boolean selects.
+ * @param {JQuery<HTMLElement>} params.selectElem - The select element for boolean values.
+ * @param {object} params.entry - The entry object containing the boolean value.
+ * @param {string} params.entryKey - The key in the entry object for the boolean value.
+ * @param {object} params.data - The data object containing entries.
+ * @param {string} params.name - The name of the world info to save changes to.
  */
-function handleBooleanSelectHelper({ selectElem, entry, entryKey, data, name, setWIOriginalDataValue, saveWorldInfo }) {
+function handleBooleanSelectHelper({ selectElem, entry, entryKey, data, name }) {
     selectElem.data('uid', entry.uid);
     selectElem.on('input', async function (_, { noSave = false } = {}) {
         const uid = $(this).data('uid');
@@ -2789,8 +2834,17 @@ function handleBooleanSelectHelper({ selectElem, entry, entryKey, data, name, se
 
 /**
  * Helper to handle input fields for numbers.
+ * @param {object} params - Parameters for handling number inputs.
+ * @param {JQuery<HTMLElement>} params.inputElem - The input element for the number.
+ * @param {object} params.entry - The entry object containing the number value.
+ * @param {string} params.entryKey - The key in the entry object for the number value.
+ * @param {object} params.data - The data object containing entries.
+ * @param {string} params.name - The name of the world info to save changes to.
+ * @param {number} params.min - The minimum value for the number input.
+ * @param {number} params.max - The maximum value for the number input.
+ * @param {boolean} [params.clamp=false] - Whether to clamp the value within the min and max range.
  */
-function handleNumberInputHelper({ inputElem, entry, entryKey, data, name, setWIOriginalDataValue, saveWorldInfo, min, max, clamp = false }) {
+function handleNumberInputHelper({ inputElem, entry, entryKey, data, name, min, max, clamp = false }) {
     inputElem.data('uid', entry.uid);
     inputElem.on('input', async function (_, { noSave = false } = {}) {
         const uid = $(this).data('uid');
@@ -2813,8 +2867,13 @@ function handleNumberInputHelper({ inputElem, entry, entryKey, data, name, setWI
 
 /**
  * Helper to handle tri-state selector for constant/normal/vectorized.
+ * @param {object} params - Parameters for handling the entry state selector.
+ * @param {JQuery<HTMLElement>} params.entryStateSelector - The select element for entry state.
+ * @param {object} params.entry - The entry object containing the state.
+ * @param {object} params.data - The data object containing entries.
+ * @param {string} params.name - The name of the world info to save changes to.
  */
-function handleEntryStateSelectorHelper({ entryStateSelector, entry, data, name, setWIOriginalDataValue, saveWorldInfo }) {
+function handleEntryStateSelectorHelper({ entryStateSelector, entry, data, name }) {
     entryStateSelector.data('uid', entry.uid);
     entryStateSelector.on('click', function (event) {
         event.stopPropagation();
@@ -2850,8 +2909,14 @@ function handleEntryStateSelectorHelper({ entryStateSelector, entry, data, name,
 
 /**
  * Helper to handle kill switch toggle.
+ * @param {object} params - Parameters for handling the kill switch toggle.
+ * @param {JQuery<HTMLElement>} params.entryKillSwitch - The toggle element for the kill switch.
+ * @param {object} params.entry - The entry object containing the state.
+ * @param {object} params.data - The data object containing entries.
+ * @param {string} params.name - The name of the world info to save changes to.
+ * @param {JQuery<HTMLElement>} params.template - The template element for the entry.
  */
-function handleEntryKillSwitchHelper({ entryKillSwitch, entry, data, name, setWIOriginalDataValue, saveWorldInfo, template }) {
+function handleEntryKillSwitchHelper({ entryKillSwitch, entry, data, name, template }) {
     entryKillSwitch.data('uid', entry.uid);
     entryKillSwitch.on('click', async function () {
         const uid = entry.uid;
@@ -2912,13 +2977,12 @@ export async function getWorldEntry(name, data, entry) {
     orderInput.css('width', 'calc(3em + 15px)');
 
     // Probability
-    handleProbabilityInputHelper({ probabilityInput: headerTemplate.find('input[name="probability"]'), data, entry, name, setWIOriginalDataValue, saveWorldInfo });
+    handleProbabilityInputHelper({ probabilityInput: headerTemplate.find('input[name="probability"]'), data, entry, name });
 
     // Depth
     handleNumberInputHelper({
         inputElem: headerTemplate.find('input[name="depth"]'),
-        entry, entryKey: 'depth', data, name, setWIOriginalDataValue, saveWorldInfo,
-        min: 0, max: MAX_SCAN_DEPTH, clamp: false,
+        entry, entryKey: 'depth', data, name, min: 0, max: MAX_SCAN_DEPTH, clamp: false,
     });
     headerTemplate.find('input[name="depth"]').css('width', 'calc(3em + 15px)');
 
@@ -2954,13 +3018,13 @@ export async function getWorldEntry(name, data, entry) {
     // Tri-state selector
     handleEntryStateSelectorHelper({
         entryStateSelector: headerTemplate.find('select[name="entryStateSelector"]'),
-        entry, data, name, setWIOriginalDataValue, saveWorldInfo,
+        entry, data, name,
     });
 
     // Kill switch
     handleEntryKillSwitchHelper({
         entryKillSwitch: headerTemplate.find('div[name="entryKillSwitch"]'),
-        entry, data, name, setWIOriginalDataValue, saveWorldInfo, template: headerTemplate,
+        entry, data, name, template: headerTemplate,
     });
 
     // Duplicate/delete/move buttons
@@ -3087,7 +3151,6 @@ export async function getWorldEntry(name, data, entry) {
             probabilityToggle: editTemplate.find('input[name="useProbability"]'),
             data, entry, name,
             probabilityInput: headerTemplate.find('input[name="probability"]'),
-            setWIOriginalDataValue, saveWorldInfo,
         });
 
         // Comment toggle
@@ -3168,11 +3231,9 @@ export async function getWorldEntry(name, data, entry) {
 
         const characterFilter = editTemplate.find('select[name="characterFilter"]');
         characterFilter.data('uid', entry.uid);
-        initCharacterFilterSelect2Helper(characterFilter, t);
-        fillCharacterAndTagOptionsHelper({ characterFilter, entry, getContext });
-        handleCharacterFilterChangeHelper({
-            characterFilter, data, entry, name, world_names, getContext, setWIOriginalDataValue, saveWorldInfo, t,
-        });
+        initCharacterFilterSelect2Helper(characterFilter);
+        fillCharacterAndTagOptionsHelper({ characterFilter, entry });
+        handleCharacterFilterChangeHelper({ characterFilter, data, entry, name });
 
         // Content
         const counter = editTemplate.find('.world_entry_form_token_counter');
@@ -3246,25 +3307,21 @@ export async function getWorldEntry(name, data, entry) {
         // Group weight
         handleNumberInputHelper({
             inputElem: editTemplate.find('input[name="groupWeight"]'),
-            entry, entryKey: 'groupWeight', data, name, setWIOriginalDataValue, saveWorldInfo,
-            min: 1, max: 10000, clamp: true,
+            entry, entryKey: 'groupWeight', data, name, min: 1, max: 10000, clamp: true,
         });
 
         // Sticky, cooldown, delay
         handleNumberInputHelper({
             inputElem: editTemplate.find('input[name="sticky"]'),
-            entry, entryKey: 'sticky', data, name, setWIOriginalDataValue, saveWorldInfo,
-            min: 1, max: 10000, clamp: false,
+            entry, entryKey: 'sticky', data, name, min: 1, max: 10000, clamp: false,
         });
         handleNumberInputHelper({
             inputElem: editTemplate.find('input[name="cooldown"]'),
-            entry, entryKey: 'cooldown', data, name, setWIOriginalDataValue, saveWorldInfo,
-            min: 1, max: 10000, clamp: false,
+            entry, entryKey: 'cooldown', data, name, min: 1, max: 10000, clamp: false,
         });
         handleNumberInputHelper({
             inputElem: editTemplate.find('input[name="delay"]'),
-            entry, entryKey: 'delay', data, name, setWIOriginalDataValue, saveWorldInfo,
-            min: 1, max: 10000, clamp: false,
+            entry, entryKey: 'delay', data, name, min: 1, max: 10000, clamp: false,
         });
 
         // Exclude/prevent recursion
@@ -3300,18 +3357,9 @@ export async function getWorldEntry(name, data, entry) {
         delayUntilRecursionLevelInput.val(['number', 'string'].includes(typeof entry.delayUntilRecursion) ? entry.delayUntilRecursion : '').trigger('input', { noSave: true });
 
         // Boolean selects
-        handleBooleanSelectHelper({
-            selectElem: editTemplate.find('select[name="caseSensitive"]'),
-            entry, entryKey: 'caseSensitive', data, name, setWIOriginalDataValue, saveWorldInfo,
-        });
-        handleBooleanSelectHelper({
-            selectElem: editTemplate.find('select[name="matchWholeWords"]'),
-            entry, entryKey: 'matchWholeWords', data, name, setWIOriginalDataValue, saveWorldInfo,
-        });
-        handleBooleanSelectHelper({
-            selectElem: editTemplate.find('select[name="useGroupScoring"]'),
-            entry, entryKey: 'useGroupScoring', data, name, setWIOriginalDataValue, saveWorldInfo,
-        });
+        handleBooleanSelectHelper({ selectElem: editTemplate.find('select[name="caseSensitive"]'), entry, entryKey: 'caseSensitive', data, name });
+        handleBooleanSelectHelper({ selectElem: editTemplate.find('select[name="matchWholeWords"]'), entry, entryKey: 'matchWholeWords', data, name });
+        handleBooleanSelectHelper({ selectElem: editTemplate.find('select[name="useGroupScoring"]'), entry, entryKey: 'useGroupScoring', data, name });
 
         // Match checkboxes
         handleMatchCheckboxHelper({ template: editTemplate, entry, fieldName: 'matchPersonaDescription', data, name });
