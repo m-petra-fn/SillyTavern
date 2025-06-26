@@ -2888,6 +2888,8 @@ export function substituteParams(content, _name1, _name2, _original, _group, _re
         environment.personality = fields.personality || '';
         environment.scenario = fields.scenario || '';
         environment.persona = fields.persona || '';
+        environment.activeCharContent = fields.activeCharContent || '';
+        environment.combinedCharacters = fields.combinedCharacters || '';
         environment.mesExamples = () => {
             const isInstruct = power_user.instruct.enabled && main_api !== 'openai';
             const mesExamplesArray = parseMesExamples(fields.mesExamples, isInstruct);
@@ -3298,6 +3300,8 @@ export function baseChatReplace(value, name1, name2) {
  * @property {string} version Character version
  * @property {string} charDepthPrompt Character depth note
  * @property {string} creatorNotes Character creator notes
+ * @property {string} activeCharContent Active character
+ * @property {string} combinedCharacters Combined characters
  * @returns {CharacterCardFields} Character card fields
  */
 export function getCharacterCardFields({ chid = null } = {}) {
@@ -3314,6 +3318,8 @@ export function getCharacterCardFields({ chid = null } = {}) {
         version: '',
         charDepthPrompt: '',
         creatorNotes: '',
+        activeCharContent: '',
+        combinedCharacters: '',
     };
     result.persona = baseChatReplace(power_user.persona_description?.trim(), name1, name2);
 
@@ -3342,6 +3348,8 @@ export function getCharacterCardFields({ chid = null } = {}) {
             result.personality = groupCards.personality;
             result.scenario = groupCards.scenario;
             result.mesExamples = groupCards.mesExamples;
+            result.activeCharContent = groupCards.activeCharContent?.trim();
+            result.combinedCharacters = groupCards.combinedCharacters?.trim();
         }
     }
 
@@ -4163,6 +4171,8 @@ export async function Generate(type, { automatic_trigger, force_name2, quiet_pro
         jailbreak,
         charDepthPrompt,
         creatorNotes,
+        activeCharContent,
+        combinedCharacters,
     } = getCharacterCardFields();
 
     if (main_api !== 'openai') {
@@ -4907,6 +4917,8 @@ export async function Generate(type, { automatic_trigger, force_name2, quiet_pro
             main: system,
             jailbreak,
             naiPreamble: nai_settings.preamble,
+            activeCharContent,
+            combinedCharacters,
         };
 
         // Before returning the combined prompt, give available context related information to all subscribers.
@@ -4964,6 +4976,8 @@ export async function Generate(type, { automatic_trigger, force_name2, quiet_pro
             let [prompt, counts] = await prepareOpenAIMessages({
                 name2: name2,
                 charDescription: description,
+                activeCharContent: activeCharContent,
+                combinedCharacters: combinedCharacters,
                 charPersonality: personality,
                 scenario: scenario,
                 worldInfoBefore: worldInfoBefore,
@@ -5040,6 +5054,8 @@ export async function Generate(type, { automatic_trigger, force_name2, quiet_pro
             finalPrompt: finalPrompt,
             charDescription: description,
             charPersonality: personality,
+            activeCharContent: activeCharContent,
+            combinedCharacters: combinedCharacters,
             scenarioText: scenario,
             this_max_context: this_max_context,
             padding: power_user.token_padding,
@@ -5653,7 +5669,7 @@ function parseTokenCounts(counts, thisPromptBits) {
 
     thisPromptBits.push({
         oaiStartTokens: (counts?.start + counts?.controlPrompts) || 0,
-        oaiPromptTokens: getSum(counts?.prompt, counts?.charDescription, counts?.charPersonality, counts?.scenario) || 0,
+        oaiPromptTokens: getSum(counts?.prompt, counts?.charDescription, counts?.charPersonality, counts?.activeCharContent, counts?.combinedCharacters, counts?.scenario) || 0,
         oaiBiasTokens: counts?.bias || 0,
         oaiNudgeTokens: counts?.nudge || 0,
         oaiJailbreakTokens: counts?.jailbreak || 0,
@@ -5716,6 +5732,8 @@ export async function itemizedParams(itemizedPrompts, thisPromptSet, incomingMes
     const params = {
         charDescriptionTokens: await getTokenCountAsync(itemizedPrompts[thisPromptSet].charDescription),
         charPersonalityTokens: await getTokenCountAsync(itemizedPrompts[thisPromptSet].charPersonality),
+        activeCharContentTokens: await getTokenCountAsync(itemizedPrompts[thisPromptSet].activeCharContent),
+        combinedCharactersTokens: await getTokenCountAsync(itemizedPrompts[thisPromptSet].combinedCharacters),
         scenarioTextTokens: await getTokenCountAsync(itemizedPrompts[thisPromptSet].scenarioText),
         userPersonaStringTokens: await getTokenCountAsync(itemizedPrompts[thisPromptSet].userPersona),
         worldInfoStringTokens: await getTokenCountAsync(itemizedPrompts[thisPromptSet].worldInfoString),
