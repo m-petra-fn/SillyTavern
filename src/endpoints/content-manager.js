@@ -820,6 +820,166 @@ async function downloadSoulkynCharacter(slug) {
     return null;
 }
 
+/** * Check if the given string is a valid Perchance UUID.
+ * @param {string} uuid UUID string to check
+ * @returns {boolean} True if the UUID is valid, false otherwise
+ */
+function isPerchanceUUID(uuid) {
+    if (!uuid) {
+        return false;
+    }
+    const hasGzExtension = uuid.endsWith('.gz');
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    return hasGzExtension && uuidRegex.test(uuid);
+}
+
+/**
+ * Parse Perchance URL to extract the character slug.
+ * @param {string} url Perchance character URL
+ * @returns {string | null} Slug of the character
+ */
+function parsePerchanceUrl(url) {
+    // Example: https://perchance.org/ai-character-chat?data=Personality_Advisor~6903e991c90fd1dba52c036d917e99c6.gz
+    const regex = /data=([^&]+)/;
+    const match = url.match(regex);
+
+    return match ? match[1].split('~')[1] : null;
+}
+
+/**
+ * Download Perchance character card
+ * @param {string} slug Slug of the character
+ * @returns {Promise<{buffer: Buffer, fileName: string, fileType: string} | null>}
+ */
+async function downloadPerchanceCharacter(slug) {
+    // example of slug
+    // 6903e991c90fd1dba52c036d917e99c6.gz
+    const perchanceBaseURL = 'https://user.uploads.dev/file';
+
+    try {
+        const charURL = `${perchanceBaseURL}/${slug}`;
+        console.log('Downloading Perchance character from URL:', charURL);
+        const result = await fetch(charURL, {
+            headers: { 'Content-Type': 'application/json', 'User-Agent': USER_AGENT },
+        });
+
+        //decompress gzipped content
+        if (result.ok) {
+            const compressedBuffer = Buffer.from(await result.arrayBuffer());
+            const decompressedBuffer = zlib.gunzipSync(compressedBuffer);
+
+            // inside the gz file, there is a file of the same name without extensions, but it is a json file
+
+            if (!decompressedBuffer || decompressedBuffer.length === 0) {
+                console.error('Perchance character data is empty or invalid', slug);
+                throw new Error('Failed to download character: Invalid Perchance character data');
+            }
+
+            // Parse the decompressed JSON
+            const perchanceCharData = JSON.parse(decompressedBuffer.toString());
+
+            if (!perchanceCharData.addCharacter) {
+                console.error('Perchance character data is missing addCharacter field', perchanceCharData);
+                throw new Error('Failed to download character: Invalid Perchance character data');
+            }
+
+            const perchanceChar = perchanceCharData.addCharacter;
+
+            const avatarUrl = perchanceChar.avatar.url;
+
+            const charData = {
+                name: perchanceChar.name || 'Unnamed Perchance Character',
+                first_mes: '',
+                tags: [],
+                description: perchanceChar.roleInstruction || '',
+                creator: perchanceChar.metaTitle || '',
+                creator_notes: perchanceChar.metaDescription || '',
+                alternate_greetings: [],
+                character_version: '',
+                mes_example: '',
+                post_history_instructions: '',
+                system_prompt: '',
+                scenario: '',
+                personality: perchanceChar.reminderMessage || '',
+                extensions: {
+                    perchance_data: {
+                        slug: slug,
+                        charUrl: charURL,
+                        uuid: perchanceChar.uuid || null,
+                        avatar_url: avatarUrl || '',
+                        folder_path: perchanceChar.folderPath || '',
+                        folder_name: perchanceChar.folderName || '',
+                        custom_data: perchanceChar.customData || {},
+                    }
+                },
+            };
+
+            const avatarBuffer = await fetchPerchanceAvatar(avatarUrl);
+
+            // Character card
+            const buffer = write(avatarBuffer, JSON.stringify({
+                'spec': 'chara_card_v2',
+                'spec_version': '2.0',
+                'data': charData,
+            }));
+
+            const fileName = `${charData.name}.png`;
+            const fileType = 'image/png';
+
+            return { buffer, fileName, fileType };
+        }
+
+    } catch (error) {
+        console.error('Error downloading character:', error);
+        throw error;
+    }
+    return null;
+}
+
+/** * Fetches the avatar from Perchance URL or uses a default avatar if not available.
+ * @param {string} avatarUrl URL of the avatar
+ * @returns {Promise<Buffer>} Buffer containing the avatar image
+ */
+async function fetchPerchanceAvatar(avatarUrl) {
+    const defaultAvatarPath = path.join(serverDirectory, DEFAULT_AVATAR_PATH);
+    let avatarBuffer = fs.readFileSync(defaultAvatarPath);
+
+    if (avatarUrl) {
+        // Fetch avatar
+        console.log('Fetching Perchance avatar from URL:', avatarUrl);
+        const avatarResponse = await fetch(avatarUrl, { headers: { 'User-Agent': USER_AGENT } });
+
+        if (avatarResponse.ok) {
+
+            const avatarContentType = avatarResponse.headers.get('content-type');
+            if (avatarContentType === 'image/png') {
+                avatarBuffer = Buffer.from(await avatarResponse.arrayBuffer());
+            } else {
+                // use jimp to convert the image to PNG if it's not PNG
+                console.warn(`Perchance character avatar is not PNG: ${avatarContentType}. Converting to PNG...`);
+                const avatarBufferRaw = Buffer.from(await avatarResponse.arrayBuffer());
+
+                avatarBuffer = await Jimp.read(avatarBufferRaw).then(image => {
+                    return image.getBuffer(JimpMime.png);
+                });
+            }
+
+        } else {
+            console.error('Failed to fetch Perchance avatar:', avatarResponse.statusText);
+            const isPerchanceOrgFileUploader = avatarUrl.includes('https://user-uploads.perchance.org');
+
+            if (isPerchanceOrgFileUploader) {
+                console.error('Files from https://user-uploads.perchance.org are sometimes blocked by CloudFlare, try reuploading it in https://perchance.org/upload to get the new link from https://user-uploads.dev instead.');
+            } else {
+                console.error('Please download the avatar manually and assign it to the character:', avatarUrl);
+            }
+        }
+    }
+
+    return avatarBuffer;
+}
+
+
 /**
 * @param {String} url
 * @returns {String | null } UUID of the character
