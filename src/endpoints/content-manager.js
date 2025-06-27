@@ -866,27 +866,9 @@ async function downloadPerchanceCharacter(slug) {
 
         //decompress gzipped content
         if (result.ok) {
-            const compressedBuffer = Buffer.from(await result.arrayBuffer());
-            const decompressedBuffer = zlib.gunzipSync(compressedBuffer);
+            const perchanceChar = await extractPerchanceCharacterFromGz(result);
 
-            // inside the gz file, there is a file of the same name without extensions, but it is a json file
-
-            if (!decompressedBuffer || decompressedBuffer.length === 0) {
-                console.error('Perchance character data is empty or invalid', slug);
-                throw new Error('Failed to download character: Invalid Perchance character data');
-            }
-
-            // Parse the decompressed JSON
-            const perchanceCharData = JSON.parse(decompressedBuffer.toString());
-
-            if (!perchanceCharData.addCharacter) {
-                console.error('Perchance character data is missing addCharacter field', perchanceCharData);
-                throw new Error('Failed to download character: Invalid Perchance character data');
-            }
-
-            const perchanceChar = perchanceCharData.addCharacter;
-
-            const avatarUrl = perchanceChar.avatar.url;
+            const avatarUrl = perchanceChar.avatar?.url;
 
             const charData = {
                 name: perchanceChar.name || 'Unnamed Perchance Character',
@@ -905,11 +887,11 @@ async function downloadPerchanceCharacter(slug) {
                 extensions: {
                     perchance_data: {
                         slug: slug,
-                        charUrl: charURL,
+                        char_url: charURL,
                         uuid: perchanceChar.uuid || null,
-                        avatar_url: avatarUrl || '',
-                        folder_path: perchanceChar.folderPath || '',
-                        folder_name: perchanceChar.folderName || '',
+                        avatar_url: avatarUrl || null,
+                        folder_path: perchanceChar.folderPath || null,
+                        folder_name: perchanceChar.folderName || null,
                         custom_data: perchanceChar.customData || {},
                     },
                 },
@@ -935,6 +917,33 @@ async function downloadPerchanceCharacter(slug) {
         throw error;
     }
     return null;
+}
+
+/** * Extracts Perchance character data from a gzipped response.
+ * @param {import('node-fetch').Response} result Fetch response containing gzipped character data
+ * @returns {Promise<Object>} Parsed Perchance character data
+ * @throws {Error} If the character data is invalid or missing required fields
+ */
+async function extractPerchanceCharacterFromGz(result) {
+    const compressedBuffer = Buffer.from(await result.arrayBuffer());
+    const decompressedBuffer = zlib.gunzipSync(compressedBuffer);
+
+    // inside the gz file, there is a file of the same name without extensions, but it is a json file
+
+    if (!decompressedBuffer || decompressedBuffer.length === 0) {
+        console.error('Perchance character data is empty or invalid');
+        throw new Error('Failed to download character: Invalid Perchance character data');
+    }
+
+    // Parse the decompressed JSON
+    const perchanceCharData = JSON.parse(decompressedBuffer.toString());
+
+    if (!perchanceCharData.addCharacter) {
+        console.error('Perchance character data is missing addCharacter field', perchanceCharData);
+        throw new Error('Failed to download character: Invalid Perchance character data');
+    }
+
+    return perchanceCharData.addCharacter;
 }
 
 /** * Fetches the avatar from Perchance URL or uses a default avatar if not available.
