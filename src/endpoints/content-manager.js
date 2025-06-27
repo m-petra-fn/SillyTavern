@@ -9,7 +9,7 @@ import fetch from 'node-fetch';
 import sanitize from 'sanitize-filename';
 import { sync as writeFileAtomicSync } from 'write-file-atomic';
 
-import { getConfigValue, color, setPermissionsSync } from '../util.js';
+import { getConfigValue, color, setPermissionsSync, isValidUrl } from '../util.js';
 import { write } from '../character-card-parser.js';
 import { serverDirectory } from '../server-directory.js';
 import { DEFAULT_AVATAR_PATH } from '../constants.js';
@@ -437,9 +437,9 @@ async function downloadPygmalionCharacter(id) {
         }
 
         const avatarResult = await fetch(avatarUrl);
-        const avatarBuffer = Buffer.from(await avatarResult.arrayBuffer());
+        const defaultAvatarBuffer = Buffer.from(await avatarResult.arrayBuffer());
 
-        const cardBuffer = write(avatarBuffer, JSON.stringify(characterData));
+        const cardBuffer = write(defaultAvatarBuffer, JSON.stringify(characterData));
 
         return {
             buffer: cardBuffer,
@@ -693,7 +693,7 @@ async function downloadSoulkynCharacter(slug) {
             }
 
             // Fetch avatar
-            let avatarBuffer = null;
+            let defaultAvatarBuffer = null;
             if (soulkynCharData.data?.Avatar?.FWSUUID) {
                 const avatarUrl = `https://rub.soulkyn.com/${soulkynCharData.data.Avatar.FWSUUID}/`;
                 const avatarResult = await fetch(avatarUrl, { headers: { 'User-Agent': USER_AGENT } });
@@ -701,7 +701,7 @@ async function downloadSoulkynCharacter(slug) {
                 if (avatarResult.ok) {
                     const avatarContentType = avatarResult.headers.get('content-type');
                     if (avatarContentType === 'image/png') {
-                        avatarBuffer = Buffer.from(await avatarResult.arrayBuffer());
+                        defaultAvatarBuffer = Buffer.from(await avatarResult.arrayBuffer());
                     } else {
                         console.warn(`Soulkyn character (${slug}) avatar is not PNG: ${avatarContentType}`);
                     }
@@ -713,9 +713,9 @@ async function downloadSoulkynCharacter(slug) {
             }
 
             // Fallback to default avatar
-            if (!avatarBuffer) {
+            if (!defaultAvatarBuffer) {
                 const defaultAvatarPath = path.join(serverDirectory, DEFAULT_AVATAR_PATH);
-                avatarBuffer = fs.readFileSync(defaultAvatarPath);
+                defaultAvatarBuffer = fs.readFileSync(defaultAvatarPath);
             }
 
             const d = soulkynCharData.data;
@@ -802,7 +802,7 @@ async function downloadSoulkynCharacter(slug) {
             }
 
             // Character card
-            const buffer = write(avatarBuffer, JSON.stringify({
+            const buffer = write(defaultAvatarBuffer, JSON.stringify({
                 'spec': 'chara_card_v2',
                 'spec_version': '2.0',
                 'data': charData,
@@ -870,6 +870,9 @@ async function downloadPerchanceCharacter(slug) {
 
             const avatarUrl = perchanceChar.avatar?.url;
 
+            //check if avatarURL is a base64 of any image type
+            const isAvatarBase64 = avatarUrl && avatarUrl.startsWith('data:image/');
+
             const charData = {
                 name: perchanceChar.name || 'Unnamed Perchance Character',
                 first_mes: '',
@@ -889,7 +892,7 @@ async function downloadPerchanceCharacter(slug) {
                         slug: slug,
                         char_url: charURL,
                         uuid: perchanceChar.uuid || null,
-                        avatar_url: avatarUrl || null,
+                        avatar_url: isAvatarBase64 ? null : (avatarUrl || null),
                         folder_path: perchanceChar.folderPath || null,
                         folder_name: perchanceChar.folderName || null,
                         custom_data: perchanceChar.customData || {},
@@ -897,10 +900,10 @@ async function downloadPerchanceCharacter(slug) {
                 },
             };
 
-            const avatarBuffer = await fetchPerchanceAvatar(avatarUrl);
+            const defaultAvatarBuffer = await fetchPerchanceAvatar(avatarUrl, isAvatarBase64);
 
             // Character card
-            const buffer = write(avatarBuffer, JSON.stringify({
+            const buffer = write(defaultAvatarBuffer, JSON.stringify({
                 'spec': 'chara_card_v2',
                 'spec_version': '2.0',
                 'data': charData,
@@ -948,44 +951,64 @@ async function extractPerchanceCharacterFromGz(result) {
 
 /** * Fetches the avatar from Perchance URL or uses a default avatar if not available.
  * @param {string} avatarUrl URL of the avatar
+ * @param {boolean} isAvatarBase64 Flag indicating if the avatar URL is a base64 string
  * @returns {Promise<Buffer>} Buffer containing the avatar image
  */
-async function fetchPerchanceAvatar(avatarUrl) {
+async function fetchPerchanceAvatar(avatarUrl, isAvatarBase64) {
     const defaultAvatarPath = path.join(serverDirectory, DEFAULT_AVATAR_PATH);
-    let avatarBuffer = fs.readFileSync(defaultAvatarPath);
+    const defaultAvatarBuffer = fs.readFileSync(defaultAvatarPath);
 
-    if (avatarUrl) {
-        // Fetch avatar
-        console.log('Fetching Perchance avatar from URL:', avatarUrl);
-        const avatarResponse = await fetch(avatarUrl, { headers: { 'User-Agent': USER_AGENT } });
-
-        if (avatarResponse.ok) {
-
-            const avatarContentType = avatarResponse.headers.get('content-type');
-            if (avatarContentType === 'image/png') {
-                avatarBuffer = Buffer.from(await avatarResponse.arrayBuffer());
-            } else {
-                // use jimp to convert the image to PNG if it's not PNG
-                console.warn(`Perchance character avatar is not PNG: ${avatarContentType}. Converting to PNG...`);
-                const avatarBufferRaw = Buffer.from(await avatarResponse.arrayBuffer());
-
-                avatarBuffer = await Jimp.read(avatarBufferRaw)
-                    .then(image => image.getBuffer(JimpMime.png));
-            }
-
-        } else {
-            console.error('Failed to fetch Perchance avatar:', avatarResponse.statusText);
-            const isPerchanceOrgFileUploader = avatarUrl.includes('https://user-uploads.perchance.org');
-
-            if (isPerchanceOrgFileUploader) {
-                console.error('Files from https://user-uploads.perchance.org are sometimes blocked by CloudFlare, try reuploading it in https://perchance.org/upload to get the new link from https://user-uploads.dev instead.');
-            } else {
-                console.error('Please download the avatar manually and assign it to the character:', avatarUrl);
-            }
-        }
+    if (!avatarUrl || (!isAvatarBase64 && !isValidUrl(avatarUrl))) {
+        console.warn('Perchance character does not have an avatar, it is not base64, or it is an invalid url, using default avatar');
+        return defaultAvatarBuffer;
     }
 
-    return avatarBuffer;
+    if (isAvatarBase64) {
+        // check if avatarUrl is a png
+        const isPng = avatarUrl.startsWith('data:image/png;base64,');
+        const base64 = avatarUrl.split(',')[1];
+        const buffer = Buffer.from(base64, 'base64');
+
+        if (isPng) {
+            return buffer;
+        } else {
+            // use jimp to convert the base64 to PNG if it's not PNG
+            console.warn('Perchance character avatar is not PNG, converting to PNG...');
+            return await Jimp.read(buffer).then(image => image.getBuffer(JimpMime.png));
+        }
+
+    }
+
+    // Fetch avatar from URL
+    console.log('Fetching Perchance avatar from URL:', avatarUrl);
+    const avatarResponse = await fetch(avatarUrl, { headers: { 'User-Agent': USER_AGENT } });
+
+    if (avatarResponse.ok) {
+        const avatarContentType = avatarResponse.headers.get('content-type');
+
+        if (avatarContentType === 'image/png') {
+            return Buffer.from(await avatarResponse.arrayBuffer());
+        } else {
+            // use jimp to convert the image to PNG if it's not PNG
+            console.warn(`Perchance character avatar is not PNG: ${avatarContentType}. Converting to PNG...`);
+            const defaultAvatarBufferRaw = Buffer.from(await avatarResponse.arrayBuffer());
+
+            return await Jimp.read(defaultAvatarBufferRaw)
+                .then(image => image.getBuffer(JimpMime.png));
+        }
+
+    }
+
+    console.error('Failed to fetch Perchance avatar:', avatarResponse.statusText);
+    const isPerchanceOrgFileUploader = avatarUrl.includes('https://user-uploads.perchance.org');
+
+    if (isPerchanceOrgFileUploader) {
+        console.error('Files from https://user-uploads.perchance.org are sometimes blocked by CloudFlare, try reuploading it in https://perchance.org/upload to get the new link from https://user-uploads.dev instead.');
+    }
+
+    console.error('You can also download the avatar manually and assign it to the character:', avatarUrl);
+    return defaultAvatarBuffer;
+
 }
 
 
