@@ -1,11 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { Buffer } from 'node:buffer';
+import { Jimp, JimpMime } from '../jimp.js';
 
 import express from 'express';
 import fetch from 'node-fetch';
 import sanitize from 'sanitize-filename';
-import { sync as writeFileAtomicSync } from  'write-file-atomic';
+import { sync as writeFileAtomicSync } from 'write-file-atomic';
 
 import { getConfigValue, color, setPermissionsSync } from '../util.js';
 import { write } from '../character-card-parser.js';
