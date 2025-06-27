@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { Buffer } from 'node:buffer';
-import { Jimp, JimpMime } from '../jimp.js';
 
 import express from 'express';
 import fetch from 'node-fetch';
@@ -12,6 +11,7 @@ import { sync as writeFileAtomicSync } from 'write-file-atomic';
 import { getConfigValue, color, setPermissionsSync, isValidUrl } from '../util.js';
 import { write } from '../character-card-parser.js';
 import { serverDirectory } from '../server-directory.js';
+import { Jimp, JimpMime } from '../jimp.js';
 import { DEFAULT_AVATAR_PATH } from '../constants.js';
 
 const contentDirectory = path.join(serverDirectory, 'default/content');
@@ -900,10 +900,10 @@ async function downloadPerchanceCharacter(slug) {
                 },
             };
 
-            const defaultAvatarBuffer = await fetchPerchanceAvatar(avatarUrl, isAvatarBase64);
+            const avatarBuffer = await fetchPerchanceAvatar(avatarUrl, isAvatarBase64);
 
             // Character card
-            const buffer = write(defaultAvatarBuffer, JSON.stringify({
+            const buffer = write(avatarBuffer, JSON.stringify({
                 'spec': 'chara_card_v2',
                 'spec_version': '2.0',
                 'data': charData,
