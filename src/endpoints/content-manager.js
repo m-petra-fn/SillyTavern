@@ -959,9 +959,8 @@ async function fetchPerchanceAvatar(avatarUrl) {
                 console.warn(`Perchance character avatar is not PNG: ${avatarContentType}. Converting to PNG...`);
                 const avatarBufferRaw = Buffer.from(await avatarResponse.arrayBuffer());
 
-                avatarBuffer = await Jimp.read(avatarBufferRaw).then(image => {
-                    return image.getBuffer(JimpMime.png);
-                });
+                avatarBuffer = await Jimp.read(avatarBufferRaw)
+                    .then(image => image.getBuffer(JimpMime.png));
             }
 
         } else {
