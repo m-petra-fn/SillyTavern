@@ -876,6 +876,7 @@ router.post('/importURL', async (request, response) => {
         const isAICharacterCardsContent = host.includes('aicharactercards.com');
         const isRisu = host.includes('realm.risuai.net');
         const isSoulkyn = host.includes('soulkyn.com');
+        const isPerchance = host.includes('perchance.org');
         const isGeneric = isHostWhitelisted(host);
 
         if (isPygmalionContent) {
@@ -931,6 +932,13 @@ router.post('/importURL', async (request, response) => {
             }
             type = 'character';
             result = await downloadSoulkynCharacter(soulkynSlug);
+        } else if (isPerchance) {
+            const perchanceSlug = parsePerchanceUrl(url);
+            if (!perchanceSlug) {
+                return response.sendStatus(404);
+            }
+            type = 'character';
+            result = await downloadPerchanceCharacter(perchanceSlug);
         } else if (isGeneric) {
             console.info('Downloading from generic url:', url);
             type = 'character';
@@ -966,6 +974,7 @@ router.post('/importUUID', async (request, response) => {
         const isJannny = uuid.includes('_character');
         const isPygmalion = (!isJannny && uuid.length == 36);
         const isAICC = uuid.startsWith('AICC/');
+        const isPerchance = isPerchanceUUID(uuid);
         const uuidType = uuid.includes('lorebook') ? 'lorebook' : 'character';
 
         if (isPygmalion) {
@@ -978,6 +987,9 @@ router.post('/importUUID', async (request, response) => {
             const [, author, card] = uuid.split('/');
             console.info('Downloading AICC character:', `${author}/${card}`);
             result = await downloadAICCCharacter(`${author}/${card}`);
+        } else if (isPerchance) {
+            console.info('Downloading Perchance character:', uuid);
+            result = await downloadPerchanceCharacter(uuid);
         } else {
             if (uuidType === 'character') {
                 console.info('Downloading chub character:', uuid);
