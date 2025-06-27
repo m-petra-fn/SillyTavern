@@ -828,23 +828,23 @@ function isPerchanceUUID(uuid) {
     if (!uuid) {
         return false;
     }
-    const hasGzExtension = uuid.endsWith('.gz');
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-    return hasGzExtension && uuidRegex.test(uuid);
+
+    //example: Personality_Advisor~6903e991c90fd1dba52c036d917e99c6.gz
+    //charactername~uuid.gz
+
+    const uuidRegex = /^\w+~[a-f0-9]{32}\.gz$/;
+    return uuidRegex.test(uuid);
 }
 
 /**
  * Parse Perchance URL to extract the character slug.
  * @param {string} url Perchance character URL
- * @returns {string | null} Slug of the character
+ * @returns {string} Slug of the character
  */
-function parsePerchanceUrl(url) {
+function parsePerchanceSlug(url) {
     // Example: https://perchance.org/ai-character-chat?data=Personality_Advisor~6903e991c90fd1dba52c036d917e99c6.gz
-    const regex = /data=([^&]+)/;
-    const hasGzExtension = url.endsWith('.gz');
-    const match = url.match(regex);
-
-    return hasGzExtension && match ? match[1].split('~')[1] : null;
+    // or: Personality_Advisor~6903e991c90fd1dba52c036d917e99c6.gz
+    return url?.split('~')[1] || '';
 }
 
 /**
@@ -1125,7 +1125,7 @@ router.post('/importURL', async (request, response) => {
             type = 'character';
             result = await downloadSoulkynCharacter(soulkynSlug);
         } else if (isPerchance) {
-            const perchanceSlug = parsePerchanceUrl(url);
+            const perchanceSlug = parsePerchanceSlug(url);
             if (!perchanceSlug) {
                 return response.sendStatus(404);
             }
@@ -1181,7 +1181,8 @@ router.post('/importUUID', async (request, response) => {
             result = await downloadAICCCharacter(`${author}/${card}`);
         } else if (isPerchance) {
             console.info('Downloading Perchance character:', uuid);
-            result = await downloadPerchanceCharacter(uuid);
+            const parsedUuid = parsePerchanceSlug(uuid);
+            result = await downloadPerchanceCharacter(parsedUuid);
         } else {
             if (uuidType === 'character') {
                 console.info('Downloading chub character:', uuid);
