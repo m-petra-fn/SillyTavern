@@ -973,7 +973,7 @@ async function fetchPerchanceAvatar(avatarUrl, isAvatarBase64) {
             return buffer;
         } else {
             // use jimp to convert the base64 to PNG if it's not PNG
-            console.warn('Perchance character avatar is not PNG, converting to PNG...');
+            console.trace('Perchance character avatar is not PNG, converting to PNG...');
             return await Jimp.read(buffer).then(image => image.getBuffer(JimpMime.png));
         }
 
@@ -985,15 +985,15 @@ async function fetchPerchanceAvatar(avatarUrl, isAvatarBase64) {
 
     if (avatarResponse.ok) {
         const avatarContentType = avatarResponse.headers.get('content-type');
+        const avatarBuffer = Buffer.from(await avatarResponse.arrayBuffer());
 
         if (avatarContentType === 'image/png') {
-            return Buffer.from(await avatarResponse.arrayBuffer());
+            return avatarBuffer;
         } else {
-            // use jimp to convert the image to PNG if it's not PNG
-            console.warn(`Perchance character avatar is not PNG: ${avatarContentType}. Converting to PNG...`);
-            const avatarBufferRaw = Buffer.from(await avatarResponse.arrayBuffer());
+            console.trace(`Perchance character avatar is not PNG: ${avatarContentType}. Converting to PNG...`);
 
-            return await Jimp.read(avatarBufferRaw)
+            // use jimp to convert the image to PNG if it's not PNG
+            return await Jimp.read(avatarBuffer)
                 .then(image => image.getBuffer(JimpMime.png));
         }
 
@@ -1003,10 +1003,10 @@ async function fetchPerchanceAvatar(avatarUrl, isAvatarBase64) {
     const isPerchanceOrgFileUploader = avatarUrl.includes('https://user-uploads.perchance.org');
 
     if (isPerchanceOrgFileUploader) {
-        console.error('Files from https://user-uploads.perchance.org are sometimes blocked by CloudFlare, try reuploading it in https://perchance.org/upload to get the new link from https://user-uploads.dev instead.');
+        console.warn('Files from https://user-uploads.perchance.org are sometimes blocked by CloudFlare, try reuploading it in https://perchance.org/upload to get the new link from https://user-uploads.dev instead.');
     }
 
-    console.error('You can also download the avatar manually and assign it to the character:', avatarUrl);
+    console.warn('You can also download the avatar manually and assign it to the character:', avatarUrl);
     return defaultAvatarBuffer;
 
 }
