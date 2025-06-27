@@ -910,7 +910,7 @@ async function downloadPerchanceCharacter(slug) {
                         folder_path: perchanceChar.folderPath || '',
                         folder_name: perchanceChar.folderName || '',
                         custom_data: perchanceChar.customData || {},
-                    }
+                    },
                 },
             };
 
