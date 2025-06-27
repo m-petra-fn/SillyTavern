@@ -437,9 +437,9 @@ async function downloadPygmalionCharacter(id) {
         }
 
         const avatarResult = await fetch(avatarUrl);
-        const defaultAvatarBuffer = Buffer.from(await avatarResult.arrayBuffer());
+        const avatarBuffer = Buffer.from(await avatarResult.arrayBuffer());
 
-        const cardBuffer = write(defaultAvatarBuffer, JSON.stringify(characterData));
+        const cardBuffer = write(avatarBuffer, JSON.stringify(characterData));
 
         return {
             buffer: cardBuffer,
@@ -693,7 +693,7 @@ async function downloadSoulkynCharacter(slug) {
             }
 
             // Fetch avatar
-            let defaultAvatarBuffer = null;
+            let avatarBuffer = null;
             if (soulkynCharData.data?.Avatar?.FWSUUID) {
                 const avatarUrl = `https://rub.soulkyn.com/${soulkynCharData.data.Avatar.FWSUUID}/`;
                 const avatarResult = await fetch(avatarUrl, { headers: { 'User-Agent': USER_AGENT } });
@@ -701,7 +701,7 @@ async function downloadSoulkynCharacter(slug) {
                 if (avatarResult.ok) {
                     const avatarContentType = avatarResult.headers.get('content-type');
                     if (avatarContentType === 'image/png') {
-                        defaultAvatarBuffer = Buffer.from(await avatarResult.arrayBuffer());
+                        avatarBuffer = Buffer.from(await avatarResult.arrayBuffer());
                     } else {
                         console.warn(`Soulkyn character (${slug}) avatar is not PNG: ${avatarContentType}`);
                     }
@@ -713,9 +713,9 @@ async function downloadSoulkynCharacter(slug) {
             }
 
             // Fallback to default avatar
-            if (!defaultAvatarBuffer) {
+            if (!avatarBuffer) {
                 const defaultAvatarPath = path.join(serverDirectory, DEFAULT_AVATAR_PATH);
-                defaultAvatarBuffer = fs.readFileSync(defaultAvatarPath);
+                avatarBuffer = fs.readFileSync(defaultAvatarPath);
             }
 
             const d = soulkynCharData.data;
@@ -802,7 +802,7 @@ async function downloadSoulkynCharacter(slug) {
             }
 
             // Character card
-            const buffer = write(defaultAvatarBuffer, JSON.stringify({
+            const buffer = write(avatarBuffer, JSON.stringify({
                 'spec': 'chara_card_v2',
                 'spec_version': '2.0',
                 'data': charData,
@@ -991,9 +991,9 @@ async function fetchPerchanceAvatar(avatarUrl, isAvatarBase64) {
         } else {
             // use jimp to convert the image to PNG if it's not PNG
             console.warn(`Perchance character avatar is not PNG: ${avatarContentType}. Converting to PNG...`);
-            const defaultAvatarBufferRaw = Buffer.from(await avatarResponse.arrayBuffer());
+            const avatarBufferRaw = Buffer.from(await avatarResponse.arrayBuffer());
 
-            return await Jimp.read(defaultAvatarBufferRaw)
+            return await Jimp.read(avatarBufferRaw)
                 .then(image => image.getBuffer(JimpMime.png));
         }
 
