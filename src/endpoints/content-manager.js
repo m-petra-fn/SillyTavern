@@ -841,9 +841,10 @@ function isPerchanceUUID(uuid) {
 function parsePerchanceUrl(url) {
     // Example: https://perchance.org/ai-character-chat?data=Personality_Advisor~6903e991c90fd1dba52c036d917e99c6.gz
     const regex = /data=([^&]+)/;
+    const hasGzExtension = url.endsWith('.gz');
     const match = url.match(regex);
 
-    return match ? match[1].split('~')[1] : null;
+    return hasGzExtension && match ? match[1].split('~')[1] : null;
 }
 
 /**
