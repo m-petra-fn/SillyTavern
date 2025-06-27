@@ -941,7 +941,7 @@ async function extractPerchanceCharacterFromGz(result) {
     // Parse the decompressed JSON
     const perchanceCharData = JSON.parse(decompressedBuffer.toString());
 
-    if (!perchanceCharData.addCharacter) {
+    if (!perchanceCharData?.addCharacter) {
         console.error('Perchance character data is missing addCharacter field', perchanceCharData);
         throw new Error('Failed to download character: Invalid Perchance character data');
     }
