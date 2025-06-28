@@ -1836,6 +1836,12 @@ function getCharacterSource(chId = this_chid) {
         return `https://realm.risuai.net/character/${realmId}`;
     }
 
+    const perchanceUrl = characters[chId]?.data?.extensions?.perchance_data?.char_url;
+
+    if (perchanceUrl) {
+        return perchanceUrl;
+    }
+
     return '';
 }
 
