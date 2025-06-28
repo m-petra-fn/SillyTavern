@@ -1836,10 +1836,10 @@ function getCharacterSource(chId = this_chid) {
         return `https://realm.risuai.net/character/${realmId}`;
     }
 
-    const perchanceUrl = characters[chId]?.data?.extensions?.perchance_data?.char_url;
+    const perchanceSlug = characters[chId]?.data?.extensions?.perchance_data?.slug;
 
-    if (perchanceUrl) {
-        return perchanceUrl;
+    if (perchanceSlug) {
+        return `https://perchance.org/ai-character-chat?data=${perchanceSlug}`;
     }
 
     return '';
