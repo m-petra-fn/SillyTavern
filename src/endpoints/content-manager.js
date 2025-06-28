@@ -914,7 +914,6 @@ async function downloadPerchanceCharacter(slug) {
 
             return { buffer, fileName, fileType };
         }
-
     } catch (error) {
         console.error('Error downloading character:', error);
         throw error;
@@ -976,7 +975,6 @@ async function fetchPerchanceAvatar(avatarUrl, isAvatarBase64) {
             console.trace('Perchance character avatar is not PNG, converting to PNG...');
             return await Jimp.read(buffer).then(image => image.getBuffer(JimpMime.png));
         }
-
     }
 
     // Fetch avatar from URL
@@ -996,7 +994,6 @@ async function fetchPerchanceAvatar(avatarUrl, isAvatarBase64) {
             return await Jimp.read(avatarBuffer)
                 .then(image => image.getBuffer(JimpMime.png));
         }
-
     }
 
     console.error('Failed to fetch Perchance avatar:', avatarResponse.statusText);
@@ -1008,9 +1005,7 @@ async function fetchPerchanceAvatar(avatarUrl, isAvatarBase64) {
 
     console.warn('You can also download the avatar manually and assign it to the character:', avatarUrl);
     return defaultAvatarBuffer;
-
 }
-
 
 /**
 * @param {String} url
@@ -1195,6 +1190,10 @@ router.post('/importUUID', async (request, response) => {
             else {
                 return response.sendStatus(404);
             }
+        }
+
+        if (!result) {
+            throw new Error('Failed to download content');
         }
 
         if (result.fileType) response.set('Content-Type', result.fileType);
