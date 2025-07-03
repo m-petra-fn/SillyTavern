@@ -1309,17 +1309,6 @@ export function createTagInput(inputSelector, listSelector, tagListOptions = {})
         .focus(onTagInputFocus); // <== show tag list on click
 }
 
-async function onTagDataCssGuide() {
-    const html = $(document.createElement('div'));
-    html.attr('id', 'tag_data_css_guide');
-    html.append(await renderTemplateAsync('tagDataCSSGuide', {}));
-
-    const tagContainer = $('<div class="tag_data_css_guide ui-sortable"></div>');
-    html.append(tagContainer);
-
-    await callGenericPopup(html, POPUP_TYPE.TEXT, null, { allowVerticalScrolling: true });
-}
-
 async function onViewTagsListClick() {
     const html = $(document.createElement('div'));
     html.attr('id', 'tag_view_list');
@@ -2038,14 +2027,6 @@ export function initTags() {
     $(document).on('click', '.tag_view_create', onTagCreateClick);
     $(document).on('click', '.tag_view_backup', onTagsBackupClick);
     $(document).on('click', '.tag_view_restore', onBackupRestoreClick);
-
-    $(document).on('click', '#tag_data_css_guide', function (event) {
-        // 1. Prevent the label from toggling the checkbox
-        event.preventDefault();
-        // 2. Open the guide dialog
-        onTagDataCssGuide();
-    });
-
     eventSource.on(event_types.CHARACTER_DUPLICATED, copyTags);
     eventSource.makeFirst(event_types.CHAT_CHANGED, () => selected_group ? applyTagsOnGroupSelect() : applyTagsOnCharacterSelect());
 
