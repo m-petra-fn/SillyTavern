@@ -2755,11 +2755,7 @@ export function addOneMessage(mes, { type = 'normal', insertAfter = null, scroll
         scrollChatToBottom();
     }
 
-    // Reloads chat when adding a new message to make sure this one also receives the tags as classes
-    // Could probably be improved by getting the newMessageId to reload just this message instead of whole chat
-    if (power_user.add_char_tags_to_message_div) {
-        applyCharacterTagsToMessageDivs();
-    }
+    applyCharacterTagsToMessageDivs();
 }
 
 /**
@@ -2841,9 +2837,19 @@ export function scrollChatToBottom() {
  * Function to apply character tags to message divs when rendering the chat
  */
 export function applyCharacterTagsToMessageDivs() {
-    if (!power_user.add_char_tags_to_message_div) {
-        return;
-    }
+
+    // Clear existing tags
+    $('#chat').children('.mes').each(function () {
+        const element = this; // Get the raw DOM element
+
+        for (const attr of [...element.attributes]) {
+            if (attr.name.startsWith('data-char-tag-') || attr.name === 'data-char-tags') {
+                element.removeAttribute(attr.name);
+            }
+        }
+    });
+
+    console.debug('All data tags removed');
 
     const { tags: tagsList, tag_map: characterTagData } = settings || {};
 
@@ -2909,81 +2915,6 @@ const applyTags = ($element, tagData) => {
         $element.attr(`data-char-tag-${tagName}`, '');
     });
 };
-
-// export function applyCharacterTagsToMessageDivs() {
-//     if (!power_user.add_char_tags_to_message_div) {
-//         return;
-//     }
-
-//     const {
-//         tags: tagsList,
-//         tag_map: characterTagData
-//     } = settings || {};
-
-//     if (!tagsList?.length || !characterTagData) {
-//         return;
-//     }
-
-//     console.debug('Adding character tags to message divs');
-
-//     // Create an object map for quick ID-to-name lookup
-//     const tagNamesById = tagsList.reduce((acc, tag) => {
-//         acc[tag.id] = tag.name;
-//         return acc;
-//     }, {});
-
-//     // Cache to store the array of tag names for a character
-//     const characterTagsCache = {};
-
-//     // Iterate over each message div in the chat
-//     $('#chat').children('.mes').each(function () {
-
-//         const avatarFileName = extractCharacterAvatar($(this).find('.avatar img').attr('src'));
-
-//         if (!avatarFileName) {
-//             return;
-//         }
-
-//         const cachedTagsForCharacter = characterTagsCache[avatarFileName];
-
-//         // Use cached tags if available
-//         if (cachedTagsForCharacter) {
-
-//             $(this).attr('data-char-tags', cachedTagsForCharacter.joinedTagNames);
-
-//             // Iterate over the cached array of tags and set attributes
-//             cachedTagsForCharacter.tagNames.forEach(tagName => {
-//                 $(this).attr(`data-char-tag-${tagName}`, '');
-//             });
-//             console.debug(`Added cached data attributes for ${avatarFileName}.`);
-//             return;
-//         }
-
-//         const tagIds = characterTagData[avatarFileName];
-
-//         if (tagIds?.length) {
-//             // Get names of tags using their ids
-//             const tagNames = tagIds.map(id => tagNamesById[id]).filter(Boolean);
-
-//             if (tagNames?.length) {
-
-//                 // Splitting with a comma to avoid clashing with tags that have spaces
-//                 const joinedTagNames = tagNames.join(',');
-//                 $(this).attr('data-char-tags', joinedTagNames);
-
-//                 // Add each attribute as data-char-tag-TAGNAME
-//                 tagNames.forEach(tagName => {
-//                     $(this).attr(`data-char-tag-${tagName}`, '');
-//                 });
-
-//                 // Add the tag names and the joined ones to the cache
-//                 characterTagsCache[avatarFileName] = { tagNames, joinedTagNames };
-//                 console.debug(`Added data attributes for ${avatarFileName}:`, tagNames);
-//             }
-//         }
-
-//     });
-// }
 
 /** Extracts the character avatar file name from the avatar source URL.
  * @param {string} avatarSrc The source URL of the character avatar.
