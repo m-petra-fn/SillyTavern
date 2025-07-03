@@ -1370,7 +1370,7 @@ function applyTheme(name) {
                 $('#click_to_edit').prop('checked', power_user.click_to_edit);
             },
         },
-                {
+        {
             key: 'add_char_tags_to_message_div',
             action: () => {
                 $('#add_char_tags_to_message_div').prop('checked', power_user.add_char_tags_to_message_div);
