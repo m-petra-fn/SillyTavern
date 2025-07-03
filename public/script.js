@@ -2852,6 +2852,9 @@ export function applyCharacterTagsToMessageDivs() {
         return acc;
     }, {});
 
+    // cache to store tag names for that character when they have multiple messages
+    const characterTagNamesCache = {};
+
     // Iterate over each message div in the chat
     $('#chat').children('.mes').each(function () {
 
@@ -2870,6 +2873,16 @@ export function applyCharacterTagsToMessageDivs() {
 
         console.debug(`Normalized avatar file located for div tag addition: ${normalizedAvatarFile}`);
 
+        const cachedTagNamesForCharacter = characterTagNamesCache[normalizedAvatarFile];
+
+        // Simple cache for characters that were already processed before
+        if (cachedTagNamesForCharacter) {
+            $(this).addClass(cachedTagNamesForCharacter);
+            console.debug(`Added cached classes: '${cachedTagNamesForCharacter}' to ${normalizedAvatarFile}'s message.`);
+            $(this).addClass('tags-processed');
+            return;
+        }
+
         // 1. Get the array of Tag IDs for this character
         const tagIds = characterTagData[normalizedAvatarFile];
 
@@ -2886,8 +2899,12 @@ export function applyCharacterTagsToMessageDivs() {
             // 3. Add all classes at once if we have any valid names
 
             if (classNames?.length) {
-                $(this).addClass(classNames.join(' '));
-                console.debug(`Added classes: '${classNames.join(' ')}' to ${normalizedAvatarFile}'s message.`);
+                const joinedClassNames = classNames.join(' ');
+                $(this).addClass(joinedClassNames);
+                // add to cache
+
+                characterTagNamesCache[normalizedAvatarFile] = joinedClassNames;
+                console.debug(`Added classes: '${joinedClassNames}' to ${normalizedAvatarFile}'s message.`);
             }
         }
 
