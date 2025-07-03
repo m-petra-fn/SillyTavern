@@ -2015,7 +2015,7 @@ export function initTags() {
     $(document).on('click', '.tags_view', function (event) {
         // 1. Prevent the label from toggling the checkbox
         event.preventDefault();
-        // 2. Open the guide dialog
+        // 2. Open the tag view list dialog
         onViewTagsListClick();
     });
     $(document).on('click', '.tag_delete', onTagDeleteClick);
