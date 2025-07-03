@@ -2754,6 +2754,12 @@ export function addOneMessage(mes, { type = 'normal', insertAfter = null, scroll
     if (!insertAfter && !insertBefore && scroll) {
         scrollChatToBottom();
     }
+
+    // Reloads chat when adding a new message to make sure this one also receives the tags as classes
+    // Could probably be improved by getting the newMessageId to reload just this message instead of whole chat
+    if (power_user.add_char_tags_to_message_div) {
+        applyCharacterTagsToMessageDivs();
+    }
 }
 
 /**
