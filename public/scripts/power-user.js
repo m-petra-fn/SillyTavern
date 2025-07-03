@@ -341,6 +341,7 @@ let power_user = {
     external_media_forbidden_overrides: [],
     pin_styles: true,
     click_to_edit: false,
+    add_char_tags_to_message_div: false,
 };
 
 let themes = [];
@@ -1369,6 +1370,12 @@ function applyTheme(name) {
                 $('#click_to_edit').prop('checked', power_user.click_to_edit);
             },
         },
+                {
+            key: 'add_char_tags_to_message_div',
+            action: () => {
+                $('#add_char_tags_to_message_div').prop('checked', power_user.add_char_tags_to_message_div);
+            },
+        },
     ];
 
     for (const { key, selector, type, action } of themeProperties) {
@@ -1714,6 +1721,7 @@ async function loadPowerUserSettings(settings, data) {
     $('#forbid_external_media').prop('checked', power_user.forbid_external_media);
     $('#pin_styles').prop('checked', power_user.pin_styles);
     $('#click_to_edit').prop('checked', power_user.click_to_edit);
+    $('#add_char_tags_to_message_div').prop('checked', power_user.add_char_tags_to_message_div);
 
     for (const theme of themes) {
         const option = document.createElement('option');
@@ -2452,6 +2460,7 @@ function getThemeObject(name) {
         compact_input_area: power_user.compact_input_area,
         show_swipe_num_all_messages: power_user.show_swipe_num_all_messages,
         click_to_edit: power_user.click_to_edit,
+        add_char_tags_to_message_div: power_user.add_char_tags_to_message_div,
     };
 }
 
@@ -4035,6 +4044,12 @@ $(document).ready(() => {
     $('#click_to_edit').on('input', function () {
         power_user.click_to_edit = !!$(this).prop('checked');
         saveSettingsDebounced();
+    });
+
+    $('#add_char_tags_to_message_div').on('input', function () {
+        power_user.add_char_tags_to_message_div = !!$(this).prop('checked');
+        saveSettingsDebounced();
+        reloadCurrentChat();
     });
 
     $('#ui_preset_import_button').on('click', function () {
