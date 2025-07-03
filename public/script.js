@@ -2843,7 +2843,7 @@ export function applyCharacterTagsToMessageDivs() {
         return;
     }
 
-    console.trace('Adding character tags to message divs');
+    console.debug('Adding character tags to message divs');
 
     // Create an object map for quick ID-to-name lookup
 
@@ -2855,7 +2855,7 @@ export function applyCharacterTagsToMessageDivs() {
     // Iterate over each message div in the chat
     $('#chat').children('.mes').each(function () {
 
-        console.trace(`Processing message div for character: ${$(this).attr('ch_name')}`);
+        console.debug(`Processing message div for character: ${$(this).attr('ch_name')}`);
 
         // Prevent adding tags more than once (vibecode addition, dunno if really needed)
         if ($(this).hasClass('tags-processed')) {
@@ -2868,7 +2868,7 @@ export function applyCharacterTagsToMessageDivs() {
             return;
         }
 
-        console.trace(`Normalized avatar file located for div tag addition: ${normalizedAvatarFile}`);
+        console.debug(`Normalized avatar file located for div tag addition: ${normalizedAvatarFile}`);
 
         // 1. Get the array of Tag IDs for this character
         const tagIds = characterTagData[normalizedAvatarFile];
@@ -2881,13 +2881,13 @@ export function applyCharacterTagsToMessageDivs() {
                 .map(id => normalizeTagClassName(tagNamesById[id]))
                 .filter(Boolean);
 
-            console.trace(`Character tags for ${normalizedAvatarFile}:`, classNames);
+            console.debug(`Character tags for ${normalizedAvatarFile}:`, classNames);
 
             // 3. Add all classes at once if we have any valid names
 
             if (classNames?.length) {
                 $(this).addClass(classNames.join(' '));
-                console.trace(`Added classes: '${classNames.join(' ')}' to ${normalizedAvatarFile}'s message.`);
+                console.debug(`Added classes: '${classNames.join(' ')}' to ${normalizedAvatarFile}'s message.`);
             }
         }
 
