@@ -2837,8 +2837,10 @@ export function scrollChatToBottom() {
     }
 }
 
+/**
+ * Function to apply character tags to message divs when rendering the chat
+ */
 export function applyCharacterTagsToMessageDivs() {
-
     if (!power_user.add_char_tags_to_message_div) {
         return;
     }
@@ -2851,84 +2853,137 @@ export function applyCharacterTagsToMessageDivs() {
 
     console.debug('Adding character tags to message divs');
 
-    // Create an object map for quick ID-to-name lookup
-
     const tagNamesById = tagsList.reduce((acc, tag) => {
         acc[tag.id] = tag.name;
         return acc;
     }, {});
 
-    // cache to store tag names for that character when they have multiple messages
-    const characterTagNamesCache = {};
+    const characterTagsCache = {};
 
-    // Iterate over each message div in the chat
+    // Iterate each message div
     $('#chat').children('.mes').each(function () {
+        const $this = $(this); // Store the jQuery object
+        const avatarFileName = extractCharacterAvatar($this.find('.avatar img').attr('src'));
 
-        console.debug(`Processing message div for character: ${$(this).attr('ch_name')}`);
-
-        // Prevent adding tags more than once (vibecode addition, dunno if really needed)
-        if ($(this).hasClass('tags-processed')) {
+        if (!avatarFileName) {
             return;
         }
 
-        const normalizedAvatarFile = extractCharacterAvatar($(this).find('.avatar img').attr('src'));
+        let tagsForCharacter = characterTagsCache[avatarFileName];
 
-        if (!normalizedAvatarFile) {
-            return;
-        }
+        // If tags are NOT in the cache, compute and store them
+        if (!tagsForCharacter) {
+            const tagIds = characterTagData[avatarFileName];
+            if (tagIds?.length) {
+                const tagNames = tagIds.map(id => tagNamesById[id]).filter(Boolean);
 
-        console.debug(`Normalized avatar file located for div tag addition: ${normalizedAvatarFile}`);
-
-        const cachedTagNamesForCharacter = characterTagNamesCache[normalizedAvatarFile];
-
-        // Simple cache for characters that were already processed before
-        if (cachedTagNamesForCharacter) {
-            $(this).addClass(cachedTagNamesForCharacter);
-            console.debug(`Added cached classes: '${cachedTagNamesForCharacter}' to ${normalizedAvatarFile}'s message.`);
-            $(this).addClass('tags-processed');
-            return;
-        }
-
-        // 1. Get the array of Tag IDs for this character
-        const tagIds = characterTagData[normalizedAvatarFile];
-
-        if (tagIds?.length) {
-
-            // 2. Map IDs to names, sanitize them, and filter out any that weren't found
-
-            const classNames = tagIds
-                .map(id => normalizeTagClassName(tagNamesById[id]))
-                .filter(Boolean);
-
-            console.debug(`Character tags for ${normalizedAvatarFile}:`, classNames);
-
-            // 3. Add all classes at once if we have any valid names
-
-            if (classNames?.length) {
-                const joinedClassNames = classNames.join(' ');
-                $(this).addClass(joinedClassNames);
-                // add to cache
-
-                characterTagNamesCache[normalizedAvatarFile] = joinedClassNames;
-                console.debug(`Added classes: '${joinedClassNames}' to ${normalizedAvatarFile}'s message.`);
+                if (tagNames.length) {
+                    tagsForCharacter = {
+                        tagNames,
+                        joinedTagNames: tagNames.join(',')
+                    };
+                    // Add the newly computed tags to the cache
+                    characterTagsCache[avatarFileName] = tagsForCharacter;
+                }
             }
         }
 
-        // Mark as processed so the logic doesn't run again for this message (vibecode addition, dunno if really needed)
-        $(this).addClass('tags-processed');
-
+        // If we have tags (either from cache or newly computed), apply them
+        if (tagsForCharacter) {
+            applyTags($this, tagsForCharacter);
+            console.debug(`Added data attributes for ${avatarFileName}.`);
+        }
     });
-
 }
 
-/** * Normalizes a tag class name by replacing spaces with hyphens and lowercasing it.
- * @param {string} name The tag name to normalize.
- * @returns {string|null} The normalized tag class name, or null if the input is falsy.
+/**
+ * Helper function to apply all necessary data attributes to a DOM element.
+ * @param {jQuery} $element - The jQuery object for the message div.
+ * @param {object} tagData - An object containing tag information.
+ * @param {string[]} tagData.tagNames - An array of tag names.
+ * @param {string} tagData.joinedTagNames - A comma-separated string of tag names.
  */
-export function normalizeTagClassName(name) {
-    // Sanitize: return name, lowercased, with spaces replaced by hyphens (vibecoded sanitizing)
-    return name ? name.replace(/\s+/g, '-').toLowerCase() : null;
-}
+const applyTags = ($element, tagData) => {
+    $element.attr('data-char-tags', tagData.joinedTagNames);
+    tagData.tagNames.forEach(tagName => {
+        $element.attr(`data-char-tag-${tagName}`, '');
+    });
+};
+
+// export function applyCharacterTagsToMessageDivs() {
+//     if (!power_user.add_char_tags_to_message_div) {
+//         return;
+//     }
+
+//     const {
+//         tags: tagsList,
+//         tag_map: characterTagData
+//     } = settings || {};
+
+//     if (!tagsList?.length || !characterTagData) {
+//         return;
+//     }
+
+//     console.debug('Adding character tags to message divs');
+
+//     // Create an object map for quick ID-to-name lookup
+//     const tagNamesById = tagsList.reduce((acc, tag) => {
+//         acc[tag.id] = tag.name;
+//         return acc;
+//     }, {});
+
+//     // Cache to store the array of tag names for a character
+//     const characterTagsCache = {};
+
+//     // Iterate over each message div in the chat
+//     $('#chat').children('.mes').each(function () {
+
+//         const avatarFileName = extractCharacterAvatar($(this).find('.avatar img').attr('src'));
+
+//         if (!avatarFileName) {
+//             return;
+//         }
+
+//         const cachedTagsForCharacter = characterTagsCache[avatarFileName];
+
+//         // Use cached tags if available
+//         if (cachedTagsForCharacter) {
+
+//             $(this).attr('data-char-tags', cachedTagsForCharacter.joinedTagNames);
+
+//             // Iterate over the cached array of tags and set attributes
+//             cachedTagsForCharacter.tagNames.forEach(tagName => {
+//                 $(this).attr(`data-char-tag-${tagName}`, '');
+//             });
+//             console.debug(`Added cached data attributes for ${avatarFileName}.`);
+//             return;
+//         }
+
+//         const tagIds = characterTagData[avatarFileName];
+
+//         if (tagIds?.length) {
+//             // Get names of tags using their ids
+//             const tagNames = tagIds.map(id => tagNamesById[id]).filter(Boolean);
+
+//             if (tagNames?.length) {
+
+//                 // Splitting with a comma to avoid clashing with tags that have spaces
+//                 const joinedTagNames = tagNames.join(',');
+//                 $(this).attr('data-char-tags', joinedTagNames);
+
+//                 // Add each attribute as data-char-tag-TAGNAME
+//                 tagNames.forEach(tagName => {
+//                     $(this).attr(`data-char-tag-${tagName}`, '');
+//                 });
+
+//                 // Add the tag names and the joined ones to the cache
+//                 characterTagsCache[avatarFileName] = { tagNames, joinedTagNames };
+//                 console.debug(`Added data attributes for ${avatarFileName}:`, tagNames);
+//             }
+//         }
+
+//     });
+// }
 
 /** Extracts the character avatar file name from the avatar source URL.
  * @param {string} avatarSrc The source URL of the character avatar.
@@ -2939,17 +2994,8 @@ export function extractCharacterAvatar(avatarSrc) {
         return null;
     }
 
-    const avatarFile = avatarSrc.split('file=')[1];
-
-    if (avatarFile) {
-        // normalize character png, removing %20 spaces and other things (vibecoded decoding)
-        const decodedAvatarFile = decodeURIComponent(avatarFile);
-        const normalizedAvatarFile = decodedAvatarFile.replace(/^\/+/, '');
-
-        return normalizedAvatarFile;
-    }
-
-    return null;
+    const url = new URL(avatarSrc, window.location.origin);
+    return url?.searchParams.get('file');
 }
 
 /**
