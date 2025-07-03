@@ -2053,6 +2053,7 @@ export async function printMessages() {
     showSwipeButtons();
     scrollChatToBottom();
     applyStylePins();
+    applyCharacterTagsToMessageDivs();
 
     function incrementAndCheck() {
         imagesLoaded++;
@@ -2828,6 +2829,104 @@ export function scrollChatToBottom() {
 
         chatElement.scrollTop(position);
     }
+}
+
+export function applyCharacterTagsToMessageDivs() {
+
+    if (!power_user.add_char_tags_to_message_div) {
+        return;
+    }
+
+    const { tags: tagsList, tag_map: characterTagData } = settings || {};
+
+    if (!tagsList?.length || !characterTagData) {
+        return;
+    }
+
+    console.trace('Adding character tags to message divs');
+
+    // Create an object map for quick ID-to-name lookup
+
+    const tagNamesById = tagsList.reduce((acc, tag) => {
+        acc[tag.id] = tag.name;
+        return acc;
+    }, {});
+
+    // Iterate over each message div in the chat
+    $('#chat').children('.mes').each(function () {
+
+        console.trace(`Processing message div for character: ${$(this).attr('ch_name')}`);
+
+        // Prevent adding tags more than once (vibecode addition, dunno if really needed)
+        if ($(this).hasClass('tags-processed')) {
+            return;
+        }
+
+        const normalizedAvatarFile = extractCharacterAvatar($(this).find('.avatar img').attr('src'));
+
+        if (!normalizedAvatarFile) {
+            return;
+        }
+
+        console.trace(`Normalized avatar file located for div tag addition: ${normalizedAvatarFile}`);
+
+        // 1. Get the array of Tag IDs for this character
+        const tagIds = characterTagData[normalizedAvatarFile];
+
+        if (tagIds?.length) {
+
+            // 2. Map IDs to names, sanitize them, and filter out any that weren't found
+
+            const classNames = tagIds
+                .map(id => normalizeTagClassName(tagNamesById[id]))
+                .filter(Boolean);
+
+            console.trace(`Character tags for ${normalizedAvatarFile}:`, classNames);
+
+            // 3. Add all classes at once if we have any valid names
+
+            if (classNames?.length) {
+                $(this).addClass(classNames.join(' '));
+                console.trace(`Added classes: '${classNames.join(' ')}' to ${normalizedAvatarFile}'s message.`);
+            }
+        }
+
+        // Mark as processed so the logic doesn't run again for this message (vibecode addition, dunno if really needed)
+        $(this).addClass('tags-processed');
+
+    });
+
+}
+
+/** * Normalizes a tag class name by replacing spaces with hyphens and lowercasing it.
+ * @param {string} name The tag name to normalize.
+ * @returns {string|null} The normalized tag class name, or null if the input is falsy.
+ */
+export function normalizeTagClassName(name) {
+    // Sanitize: return name, lowercased, with spaces replaced by hyphens (vibecoded sanitizing)
+    return name ? name.replace(/\s+/g, '-').toLowerCase() : null;
+}
+
+/** Extracts the character avatar file name from the avatar source URL.
+ * @param {string} avatarSrc The source URL of the character avatar.
+ * @returns {string|null} The normalized avatar file name, or null if the input is falsy or doesn't contain a valid file name.
+ */
+export function extractCharacterAvatar(avatarSrc) {
+    if (!avatarSrc) {
+        return null;
+    }
+
+    const avatarFile = avatarSrc.split('file=')[1];
+
+    if (avatarFile) {
+        // normalize character png, removing %20 spaces and other things (vibecoded decoding)
+        const decodedAvatarFile = decodeURIComponent(avatarFile);
+        const normalizedAvatarFile = decodedAvatarFile.replace(/^\/+/, '');
+
+        return normalizedAvatarFile;
+    }
+
+    return null;
 }
 
 /**
