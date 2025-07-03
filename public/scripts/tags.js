@@ -12,6 +12,7 @@ import {
     event_types,
     DEFAULT_PRINT_TIMEOUT,
     printCharacters,
+    reloadCurrentChat,
 } from '../script.js';
 import { FILTER_TYPES, FILTER_STATES, DEFAULT_FILTER_STATE, isFilterState, FilterHelper } from './filters.js';
 
@@ -686,6 +687,10 @@ function selectTag(event, ui, listSelector, { tagListOptions = {} } = {}) {
 
     addTagsToEntity(tag, characterIds, { tagListSelector: listSelector, tagListOptions: tagListOptions });
 
+    // Reload the chat so that tags are applied to the message divs and css can be loaded
+    if (power_user.add_char_tags_to_message_div) {
+        reloadCurrentChat();
+    }
     // need to return false to keep the input clear
     return false;
 }
@@ -1237,6 +1242,10 @@ function onTagRemoveClick(event) {
     const characterIds = characterData ? JSON.parse(characterData).characterIds : null;
 
     removeTagFromEntity(tag, characterIds, { tagElement: tagElement });
+    // Reload the chat so that tags are applied to the message divs and css can be loaded
+    if (power_user.add_char_tags_to_message_div) {
+        reloadCurrentChat();
+    }
 }
 
 // @ts-ignore
