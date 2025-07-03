@@ -12,7 +12,6 @@ import {
     event_types,
     DEFAULT_PRINT_TIMEOUT,
     printCharacters,
-    reloadCurrentChat,
     applyCharacterTagsToMessageDivs,
 } from '../script.js';
 import { FILTER_TYPES, FILTER_STATES, DEFAULT_FILTER_STATE, isFilterState, FilterHelper } from './filters.js';
