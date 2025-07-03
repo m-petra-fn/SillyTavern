@@ -2880,7 +2880,7 @@ export function applyCharacterTagsToMessageDivs() {
                 if (tagNames.length) {
                     tagsForCharacter = {
                         tagNames,
-                        joinedTagNames: tagNames.join(',')
+                        joinedTagNames: tagNames.join(','),
                     };
                     // Add the newly computed tags to the cache
                     characterTagsCache[avatarFileName] = tagsForCharacter;
