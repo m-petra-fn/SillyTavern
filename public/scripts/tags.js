@@ -1313,6 +1313,17 @@ export function createTagInput(inputSelector, listSelector, tagListOptions = {})
         .focus(onTagInputFocus); // <== show tag list on click
 }
 
+async function onTagDataCssGuide() {
+    const html = $(document.createElement('div'));
+    html.attr('id', 'tag_data_css_guide');
+    html.append(await renderTemplateAsync('tagDataCSSGuide', {}));
+
+    const tagContainer = $('<div class="tag_data_css_guide ui-sortable"></div>');
+    html.append(tagContainer);
+
+    await callGenericPopup(html, POPUP_TYPE.TEXT, null, { allowVerticalScrolling: true });
+}
+
 async function onViewTagsListClick() {
     const html = $(document.createElement('div'));
     html.attr('id', 'tag_view_list');
@@ -1864,7 +1875,8 @@ function registerTagsSlashCommands() {
             }),
         ],
         unnamedArgumentList: [
-            SlashCommandArgument.fromProps({ description: 'tag name',
+            SlashCommandArgument.fromProps({
+                description: 'tag name',
                 typeList: [ARGUMENT_TYPE.STRING],
                 isRequired: true,
                 enumProvider: commonEnumProviders.tagsForChar('not-existing'),
@@ -1901,7 +1913,8 @@ function registerTagsSlashCommands() {
             return String(result);
         },
         namedArgumentList: [
-            SlashCommandNamedArgument.fromProps({ name: 'name',
+            SlashCommandNamedArgument.fromProps({
+                name: 'name',
                 description: 'Character name - or unique character identifier (avatar key)',
                 typeList: [ARGUMENT_TYPE.STRING],
                 defaultValue: '{{char}}',
@@ -1909,7 +1922,8 @@ function registerTagsSlashCommands() {
             }),
         ],
         unnamedArgumentList: [
-            SlashCommandArgument.fromProps({ description: 'tag name',
+            SlashCommandArgument.fromProps({
+                description: 'tag name',
                 typeList: [ARGUMENT_TYPE.STRING],
                 isRequired: true,
                 /**@param {SlashCommandExecutor} executor */
@@ -2028,6 +2042,14 @@ export function initTags() {
     $(document).on('click', '.tag_view_create', onTagCreateClick);
     $(document).on('click', '.tag_view_backup', onTagsBackupClick);
     $(document).on('click', '.tag_view_restore', onBackupRestoreClick);
+
+    $(document).on('click', '#tag_data_css_guide', function (event) {
+        // 1. Prevent the label from toggling the checkbox
+        event.preventDefault();
+        // 2. Open the guide dialog
+        onTagDataCssGuide();
+    });
+
     eventSource.on(event_types.CHARACTER_DUPLICATED, copyTags);
     eventSource.makeFirst(event_types.CHAT_CHANGED, () => selected_group ? applyTagsOnGroupSelect() : applyTagsOnCharacterSelect());
 
