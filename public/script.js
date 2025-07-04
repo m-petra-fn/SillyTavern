@@ -2053,6 +2053,7 @@ export async function printMessages() {
     showSwipeButtons();
     scrollChatToBottom();
     applyStylePins();
+    applyCharacterTagsToMessageDivs();
 
     function incrementAndCheck() {
         imagesLoaded++;
@@ -2753,6 +2754,8 @@ export function addOneMessage(mes, { type = 'normal', insertAfter = null, scroll
     if (!insertAfter && !insertBefore && scroll) {
         scrollChatToBottom();
     }
+
+    applyCharacterTagsToMessageDivs();
 }
 
 /**
@@ -2828,6 +2831,102 @@ export function scrollChatToBottom() {
 
         chatElement.scrollTop(position);
     }
+}
+
+/**
+ * Function to apply character tags to message divs when rendering the chat
+ */
+export function applyCharacterTagsToMessageDivs() {
+
+    // Clear existing tags
+    $('#chat').children('.mes').each(function () {
+        const element = this; // Get the raw DOM element
+
+        for (const attr of [...element.attributes]) {
+            if (attr.name.startsWith('data-char-tag-') || attr.name === 'data-char-tags') {
+                element.removeAttribute(attr.name);
+            }
+        }
+    });
+
+    console.debug('All data tags removed');
+
+    const { tags: tagsList, tag_map: characterTagData } = settings || {};
+
+    if (!tagsList?.length || !characterTagData) {
+        return;
+    }
+
+    console.debug('Adding character tags to message divs');
+
+    const tagNamesById = tagsList.reduce((acc, tag) => {
+        acc[tag.id] = tag.name;
+        return acc;
+    }, {});
+
+    const characterTagsCache = {};
+
+    // Iterate each message div
+    $('#chat').children('.mes').each(function () {
+        const $this = $(this); // Store the jQuery object
+        const avatarFileName = extractCharacterAvatar($this.find('.avatar img').attr('src'));
+
+        if (!avatarFileName) {
+            return;
+        }
+
+        let tagsForCharacter = characterTagsCache[avatarFileName];
+
+        // If tags are NOT in the cache, compute and store them
+        if (!tagsForCharacter) {
+            const tagIds = characterTagData[avatarFileName];
+            if (tagIds?.length) {
+                const tagNames = tagIds.map(id => tagNamesById[id]).filter(Boolean);
+
+                if (tagNames.length) {
+                    tagsForCharacter = {
+                        tagNames,
+                        joinedTagNames: tagNames.join(','),
+                    };
+                    // Add the newly computed tags to the cache
+                    characterTagsCache[avatarFileName] = tagsForCharacter;
+                }
+            }
+        }
+
+        // If we have tags (either from cache or newly computed), apply them
+        if (tagsForCharacter) {
+            applyTags($this, tagsForCharacter);
+            console.debug(`Added data attributes for ${avatarFileName}.`);
+        }
+    });
+}
+
+/**
+ * Helper function to apply all necessary data attributes to a DOM element.
+ * @param {jQuery} $element - The jQuery object for the message div.
+ * @param {object} tagData - An object containing tag information.
+ * @param {string[]} tagData.tagNames - An array of tag names.
+ * @param {string} tagData.joinedTagNames - A comma-separated string of tag names.
+ */
+const applyTags = ($element, tagData) => {
+    $element.attr('data-char-tags', tagData.joinedTagNames);
+    tagData.tagNames.forEach(tagName => {
+        $element.attr(`data-char-tag-${tagName}`, '');
+    });
+};
+
+/** Extracts the character avatar file name from the avatar source URL.
+ * @param {string} avatarSrc The source URL of the character avatar.
+ * @returns {string|null} The normalized avatar file name, or null if the input is falsy or doesn't contain a valid file name.
+ */
+export function extractCharacterAvatar(avatarSrc) {
+    if (!avatarSrc) {
+        return null;
+    }
+
+    const url = new URL(avatarSrc, window.location.origin);
+    return url?.searchParams.get('file');
 }
 
 /**
