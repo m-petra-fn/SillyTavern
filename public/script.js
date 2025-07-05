@@ -2755,7 +2755,7 @@ export function addOneMessage(mes, { type = 'normal', insertAfter = null, scroll
         scrollChatToBottom();
     }
 
-    applyCharacterTagsToMessageDivs();
+    applyCharacterTagsToMessageDivs({ mesIds: newMessageId });
 }
 
 /**
@@ -2835,11 +2835,18 @@ export function scrollChatToBottom() {
 
 /**
  * Function to apply character tags to message divs when rendering the chat
+ * @param {object} options Options for applying character tags
+ * @param {number|number[]} [options.mesIds=[]] An id or array of message IDs to filter by.
+ * If empty, all messages will be processed.
+ * @returns {void}
+ * @description This function iterates through the chat messages and applies character tags
  */
-export function applyCharacterTagsToMessageDivs() {
+export function applyCharacterTagsToMessageDivs({ mesIds = [] } = {}) {
+
+    const messagesFilter = buildMessagesFilter(mesIds);
 
     // Clear existing tags
-    $('#chat').children('.mes').each(function () {
+    $('#chat').children(messagesFilter).each(function () {
         const element = this; // Get the raw DOM element
 
         for (const attr of [...element.attributes]) {
@@ -2849,15 +2856,11 @@ export function applyCharacterTagsToMessageDivs() {
         }
     });
 
-    console.debug('All data tags removed');
-
     const { tags: tagsList, tag_map: characterTagData } = settings || {};
 
     if (!tagsList?.length || !characterTagData) {
         return;
     }
-
-    console.debug('Adding character tags to message divs');
 
     const tagNamesById = tagsList.reduce((acc, tag) => {
         acc[tag.id] = tag.name;
@@ -2867,7 +2870,7 @@ export function applyCharacterTagsToMessageDivs() {
     const characterTagsCache = {};
 
     // Iterate each message div
-    $('#chat').children('.mes').each(function () {
+    $('#chat').children(messagesFilter).each(function () {
         const $this = $(this); // Store the jQuery object
         const avatarFileName = extractCharacterAvatar($this.find('.avatar img').attr('src'));
 
@@ -2902,6 +2905,31 @@ export function applyCharacterTagsToMessageDivs() {
     });
 }
 
+/** * Builds a jQuery selector string to filter messages by their IDs.
+ * @param {number|number[]} mesIds - An id or array of message IDs to filter by.
+ * @returns {string} A jQuery selector string that matches messages with the specified IDs.
+ * If mesIds is empty, it returns '.mes' to select all messages.
+ * @example
+ * buildMessagesFilter([1, 5]); // Returns '.mes[mesid="1"],.mes[mesid="5"]'
+ * buildMessagesFilter([]); // Returns '.mes'
+ */
+function buildMessagesFilter(mesIds) {
+    if (!mesIds) {
+        return '.mes'; // If no mesIds provided, select all messages
+    }
+
+    const mesIdsArray = Array.isArray(mesIds) ? mesIds : [mesIds];
+
+    if (mesIdsArray?.length) {
+        // Create a valid jQuery selector for multiple attribute values.
+        // Example output: '.mes[mesid="1"],.mes[mesid="5"]'
+        return mesIdsArray.map(id => `.mes[mesid="${id}"]`).join(',');
+    }
+
+    // If mesIds is empty, select all messages.
+    return '.mes';
+}
+
 /**
  * Helper function to apply all necessary data attributes to a DOM element.
  * @param {jQuery} $element - The jQuery object for the message div.
@@ -2909,7 +2937,7 @@ export function applyCharacterTagsToMessageDivs() {
  * @param {string[]} tagData.tagNames - An array of tag names.
  * @param {string} tagData.joinedTagNames - A comma-separated string of tag names.
  */
-const applyTags = ($element, tagData) => {
+function applyTags ($element, tagData) {
     $element.attr('data-char-tags', tagData.joinedTagNames);
     tagData.tagNames.forEach(tagName => {
         $element.attr(`data-char-tag-${tagName}`, '');
@@ -2925,8 +2953,13 @@ export function extractCharacterAvatar(avatarSrc) {
         return null;
     }
 
+    try {
     const url = new URL(avatarSrc, window.location.origin);
     return url?.searchParams.get('file');
+    } catch (error) {
+        console.error('Unable to parse character avatar using avatarSrc', avatarSrc, error);
+        return null;
+    }
 }
 
 /**
