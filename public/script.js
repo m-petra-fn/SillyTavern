@@ -2841,11 +2841,11 @@ export function scrollChatToBottom() {
  * @description This function iterates through the chat messages and applies character tags
  */
 export function applyCharacterTagsToMessageDivs({ mesIds = [] } = {}) {
-
     const messagesFilter = buildMessagesFilter(mesIds);
+    const messages = $('#chat').children(messagesFilter);
 
     // Clear existing tags
-    $('#chat').children(messagesFilter).each(function () {
+    messages.each(function () {
         const element = this; // Get the raw DOM element
 
         for (const attr of [...element.attributes]) {
@@ -2866,10 +2866,10 @@ export function applyCharacterTagsToMessageDivs({ mesIds = [] } = {}) {
         return acc;
     }, {});
 
-    const characterTagsCache = {};
+    const characterTagsCache = new Map();
 
     // Iterate each message div
-    $('#chat').children(messagesFilter).each(function () {
+    messages.each(function () {
         const $this = $(this); // Store the jQuery object
         const avatarFileName = extractCharacterAvatar($this.find('.avatar img').attr('src'));
 
@@ -2877,7 +2877,7 @@ export function applyCharacterTagsToMessageDivs({ mesIds = [] } = {}) {
             return;
         }
 
-        let tagsForCharacter = characterTagsCache[avatarFileName];
+        let tagsForCharacter = characterTagsCache.get(avatarFileName);
 
         // If tags are NOT in the cache, compute and store them
         if (!tagsForCharacter) {
@@ -2891,7 +2891,7 @@ export function applyCharacterTagsToMessageDivs({ mesIds = [] } = {}) {
                         joinedTagNames: tagNames.join(','),
                     };
                     // Add the newly computed tags to the cache
-                    characterTagsCache[avatarFileName] = tagsForCharacter;
+                    characterTagsCache.set(avatarFileName, tagsForCharacter);
                 }
             }
         }
@@ -2899,7 +2899,6 @@ export function applyCharacterTagsToMessageDivs({ mesIds = [] } = {}) {
         // If we have tags (either from cache or newly computed), apply them
         if (tagsForCharacter) {
             applyTags($this, tagsForCharacter);
-            console.debug(`Added data attributes for ${avatarFileName}.`);
         }
     });
 }
@@ -2931,7 +2930,7 @@ function buildMessagesFilter(mesIds) {
 
 /**
  * Helper function to apply all necessary data attributes to a DOM element.
- * @param {jQuery} $element - The jQuery object for the message div.
+ * @param {JQuery<HTMLElement>} $element - The jQuery object for the message div.
  * @param {object} tagData - An object containing tag information.
  * @param {string[]} tagData.tagNames - An array of tag names.
  * @param {string} tagData.joinedTagNames - A comma-separated string of tag names.
