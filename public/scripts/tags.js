@@ -2066,7 +2066,11 @@ export function applyCharacterTagsToMessageDivs({ mesIds = [] } = {}) {
         if (!tagsForCharacter) {
             const tagIds = characterTagData[avatarFileName];
             if (tagIds?.length) {
-                const tagNames = tagIds.map(id => tagNamesById[id]).filter(Boolean);
+                const tagNames = tagIds
+                    .map(id => tagNamesById[id])
+                    // replace commas with spaces to avoid issues with tag names containing commas
+                    .map(name => name?.replace(/,/g, ' '))
+                    .filter(Boolean);
 
                 if (tagNames.length) {
                     tagsForCharacter = {
