@@ -2096,8 +2096,10 @@ export function applyCharacterTagsToMessageDivs({ mesIds = [] } = {}) {
  * buildMessagesFilter([]); // Returns '.mes'
  */
 function buildMessagesFilter(mesIds) {
+    const allMessages = '.mes';
+
     if (!mesIds) {
-        return '.mes'; // If no mesIds provided, select all messages
+        return allMessages; // If no mesIds provided, select all messages
     }
 
     const mesIdsArray = Array.isArray(mesIds) ? mesIds : [mesIds];
@@ -2109,7 +2111,7 @@ function buildMessagesFilter(mesIds) {
     }
 
     // If mesIds is empty, select all messages.
-    return '.mes';
+    return allMessages;
 }
 
 /**
@@ -2122,8 +2124,34 @@ function buildMessagesFilter(mesIds) {
 function applyTags($element, tagData) {
     $element.attr('data-char-tags', tagData.joinedTagNames);
     tagData.tagNames.forEach(tagName => {
-        $element.attr(`data-char-tag-${tagName}`, '');
+        const normalizedTagName = normalizeTagName(tagName);
+
+        if (!normalizedTagName) {
+            return; // Skip empty tag names
+        }
+
+        $element.attr(`data-char-tag-${normalizedTagName}`, '');
     });
+}
+
+/**
+ * Normalizes a tag name by trimming, converting spaces to hyphens, replacing accented characters,
+ * removing special characters, and converting to lowercase.
+ * @param {string} name The tag name to normalize.
+ * @returns {string} The normalized tag name.
+ */
+function normalizeTagName(name) {
+    if (!name?.trim()) {
+        return '';
+    }
+
+    // Normalize the tag name by trimming, converting spaces to hyphens, replacing accented characters, removing special characters, and converting to lowercase
+    return name.trim()
+        .normalize('NFD') // Normalize accented characters
+        .replace(/[\u0300-\u036f]/g, '') // Remove diacritical marks
+        .replace(/[^a-zA-Z0-9\s_-]/g, '') // Remove special characters except spaces, underscores, and hyphens
+        .replace(/[\s_]+/g, '-') // Replace spaces and underscores with hyphens
+        .toLowerCase();
 }
 
 /** Extracts the character avatar file name from the avatar source URL.
