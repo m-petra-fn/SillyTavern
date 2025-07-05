@@ -12,7 +12,6 @@ import {
     event_types,
     DEFAULT_PRINT_TIMEOUT,
     printCharacters,
-    applyCharacterTagsToMessageDivs,
 } from '../script.js';
 import { FILTER_TYPES, FILTER_STATES, DEFAULT_FILTER_STATE, isFilterState, FilterHelper } from './filters.js';
 
@@ -137,7 +136,7 @@ const TAG_FOLDER_DEFAULT_TYPE = 'NONE';
  * @property {string} [color] - The background color of the tag
  * @property {string} [color2] - The foreground color of the tag
  * @property {number} [create_date] - A number representing the date when this tag was created
- * @property {boolean} is_hidden_on_character_card - Whether this tag is hidden on the character card
+ * @property {boolean} [is_hidden_on_character_card] - Whether this tag is hidden on the character card
  *
  * @property {function} [action] - An optional function that gets executed when this tag is an actionable tag and is clicked on.
  * @property {string} [class] - An optional css class added to the control representing this tag when printed. Used for custom tags in the filters.
@@ -2014,6 +2013,135 @@ function registerTagsSlashCommands() {
         </div>
     `,
     }));
+}
+
+/**
+ * Function to apply character tags to message divs when rendering the chat
+ * @param {object} options Options for applying character tags
+ * @param {number|number[]} [options.mesIds=[]] An id or array of message IDs to filter by.
+ * If empty, all messages will be processed.
+ * @returns {void}
+ * @description This function iterates through the chat messages and applies character tags
+ */
+export function applyCharacterTagsToMessageDivs({ mesIds = [] } = {}) {
+    const messagesFilter = buildMessagesFilter(mesIds);
+    const messages = $('#chat').children(messagesFilter);
+
+    // Clear existing tags
+    messages.each(function () {
+        const element = this; // Get the raw DOM element
+
+        for (const attr of [...element.attributes]) {
+            if (attr.name.startsWith('data-char-tag-') || attr.name === 'data-char-tags') {
+                element.removeAttribute(attr.name);
+            }
+        }
+    });
+
+    const tagsList = tags, characterTagData = tag_map;
+
+    if (!tagsList?.length || !characterTagData) {
+        return;
+    }
+
+    const tagNamesById = tagsList.reduce((acc, tag) => {
+        acc[tag.id] = tag.name;
+        return acc;
+    }, {});
+
+    const characterTagsCache = new Map();
+
+    // Iterate each message div
+    messages.each(function () {
+        const $this = $(this); // Store the jQuery object
+        const avatarFileName = extractCharacterAvatar($this.find('.avatar img').attr('src'));
+
+        if (!avatarFileName) {
+            return;
+        }
+
+        let tagsForCharacter = characterTagsCache.get(avatarFileName);
+
+        // If tags are NOT in the cache, compute and store them
+        if (!tagsForCharacter) {
+            const tagIds = characterTagData[avatarFileName];
+            if (tagIds?.length) {
+                const tagNames = tagIds.map(id => tagNamesById[id]).filter(Boolean);
+
+                if (tagNames.length) {
+                    tagsForCharacter = {
+                        tagNames,
+                        joinedTagNames: tagNames.join(','),
+                    };
+                    // Add the newly computed tags to the cache
+                    characterTagsCache.set(avatarFileName, tagsForCharacter);
+                }
+            }
+        }
+
+        // If we have tags (either from cache or newly computed), apply them
+        if (tagsForCharacter) {
+            applyTags($this, tagsForCharacter);
+        }
+    });
+}
+
+/**
+ * Builds a jQuery selector string to filter messages by their IDs.
+ * @param {number|number[]} mesIds - An id or array of message IDs to filter by.
+ * @returns {string} A jQuery selector string that matches messages with the specified IDs.
+ * If mesIds is empty, it returns '.mes' to select all messages.
+ * @example
+ * buildMessagesFilter([1, 5]); // Returns '.mes[mesid="1"],.mes[mesid="5"]'
+ * buildMessagesFilter([]); // Returns '.mes'
+ */
+function buildMessagesFilter(mesIds) {
+    if (!mesIds) {
+        return '.mes'; // If no mesIds provided, select all messages
+    }
+
+    const mesIdsArray = Array.isArray(mesIds) ? mesIds : [mesIds];
+
+    if (mesIdsArray?.length) {
+        // Create a valid jQuery selector for multiple attribute values.
+        // Example output: '.mes[mesid="1"],.mes[mesid="5"]'
+        return mesIdsArray.map(id => `.mes[mesid="${id}"]`).join(',');
+    }
+
+    // If mesIds is empty, select all messages.
+    return '.mes';
+}
+
+/**
+ * Helper function to apply all necessary data attributes to a DOM element.
+ * @param {JQuery<HTMLElement>} $element - The jQuery object for the message div.
+ * @param {object} tagData - An object containing tag information.
+ * @param {string[]} tagData.tagNames - An array of tag names.
+ * @param {string} tagData.joinedTagNames - A comma-separated string of tag names.
+ */
+function applyTags($element, tagData) {
+    $element.attr('data-char-tags', tagData.joinedTagNames);
+    tagData.tagNames.forEach(tagName => {
+        $element.attr(`data-char-tag-${tagName}`, '');
+    });
+}
+
+/** Extracts the character avatar file name from the avatar source URL.
+ * @param {string} avatarSrc The source URL of the character avatar.
+ * @returns {string|null} The normalized avatar file name, or null if the input is falsy or doesn't contain a valid file name.
+ */
+function extractCharacterAvatar(avatarSrc) {
+    if (!avatarSrc) {
+        return null;
+    }
+
+    try {
+        const url = new URL(avatarSrc, window.location.origin);
+        return url?.searchParams.get('file');
+    } catch (error) {
+        console.error('Unable to parse character avatar using avatarSrc', avatarSrc, error);
+        return null;
+    }
 }
 
 export function initTags() {
