@@ -2936,12 +2936,12 @@ function buildMessagesFilter(mesIds) {
  * @param {string[]} tagData.tagNames - An array of tag names.
  * @param {string} tagData.joinedTagNames - A comma-separated string of tag names.
  */
-function applyTags ($element, tagData) {
+function applyTags($element, tagData) {
     $element.attr('data-char-tags', tagData.joinedTagNames);
     tagData.tagNames.forEach(tagName => {
         $element.attr(`data-char-tag-${tagName}`, '');
     });
-};
+}
 
 /** Extracts the character avatar file name from the avatar source URL.
  * @param {string} avatarSrc The source URL of the character avatar.
@@ -2953,8 +2953,8 @@ export function extractCharacterAvatar(avatarSrc) {
     }
 
     try {
-    const url = new URL(avatarSrc, window.location.origin);
-    return url?.searchParams.get('file');
+        const url = new URL(avatarSrc, window.location.origin);
+        return url?.searchParams.get('file');
     } catch (error) {
         console.error('Unable to parse character avatar using avatarSrc', avatarSrc, error);
         return null;
