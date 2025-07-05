@@ -105,6 +105,8 @@ export async function itemizedParams(itemizedPrompts, thisPromptSet, incomingMes
     const params = {
         charDescriptionTokens: await getTokenCountAsync(itemizedPrompts[thisPromptSet].charDescription),
         charPersonalityTokens: await getTokenCountAsync(itemizedPrompts[thisPromptSet].charPersonality),
+        activeCharContentTokens: await getTokenCountAsync(itemizedPrompts[thisPromptSet].activeCharContent),
+        combinedCharactersTokens: await getTokenCountAsync(itemizedPrompts[thisPromptSet].combinedCharacters),
         scenarioTextTokens: await getTokenCountAsync(itemizedPrompts[thisPromptSet].scenarioText),
         userPersonaStringTokens: await getTokenCountAsync(itemizedPrompts[thisPromptSet].userPersona),
         worldInfoStringTokens: await getTokenCountAsync(itemizedPrompts[thisPromptSet].worldInfoString),
