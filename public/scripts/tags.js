@@ -2024,70 +2024,74 @@ function registerTagsSlashCommands() {
  * @description This function iterates through the chat messages and applies character tags
  */
 export function applyCharacterTagsToMessageDivs({ mesIds = [] } = {}) {
-    const messagesFilter = buildMessagesFilter(mesIds);
-    const messages = $('#chat').children(messagesFilter);
+    try {
+        const messagesFilter = buildMessagesFilter(mesIds);
+        const messages = $('#chat').children(messagesFilter);
 
-    // Clear existing tags
-    messages.each(function () {
-        const element = this; // Get the raw DOM element
+        // Clear existing tags
+        messages.each(function () {
+            const element = this; // Get the raw DOM element
 
-        for (const attr of [...element.attributes]) {
-            if (attr.name.startsWith('data-char-tag-') || attr.name === 'data-char-tags') {
-                element.removeAttribute(attr.name);
+            for (const attr of [...element.attributes]) {
+                if (attr.name.startsWith('data-char-tag-') || attr.name === 'data-char-tags') {
+                    element.removeAttribute(attr.name);
+                }
             }
-        }
-    });
+        });
 
-    const tagsList = tags, characterTagData = tag_map;
+        const tagsList = tags, characterTagData = tag_map;
 
-    if (!tagsList?.length || !characterTagData) {
-        return;
-    }
-
-    const tagNamesById = tagsList.reduce((acc, tag) => {
-        acc[tag.id] = tag.name;
-        return acc;
-    }, {});
-
-    const characterTagsCache = new Map();
-
-    // Iterate each message div
-    messages.each(function () {
-        const $this = $(this); // Store the jQuery object
-        const avatarFileName = extractCharacterAvatar($this.find('.avatar img').attr('src'));
-
-        if (!avatarFileName) {
+        if (!tagsList?.length || !characterTagData) {
             return;
         }
 
-        let tagsForCharacter = characterTagsCache.get(avatarFileName);
+        const tagNamesById = tagsList.reduce((acc, tag) => {
+            acc[tag.id] = tag.name;
+            return acc;
+        }, {});
 
-        // If tags are NOT in the cache, compute and store them
-        if (!tagsForCharacter) {
-            const tagIds = characterTagData[avatarFileName];
-            if (tagIds?.length) {
-                const tagNames = tagIds
-                    .map(id => tagNamesById[id])
-                    .filter(Boolean);
+        const characterTagsCache = new Map();
 
-                if (tagNames.length) {
-                    tagsForCharacter = {
-                        tagNames,
-                        joinedTagNames: tagNames
-                            .map(name => name?.replace(/,/g, ' ')) // replace commas with spaces to avoid issues with tag names containing commas
-                            .join(','),
-                    };
-                    // Add the newly computed tags to the cache
-                    characterTagsCache.set(avatarFileName, tagsForCharacter);
+        // Iterate each message div
+        messages.each(function () {
+            const $this = $(this); // Store the jQuery object
+            const avatarFileName = extractCharacterAvatar($this.find('.avatar img').attr('src'));
+
+            if (!avatarFileName) {
+                return;
+            }
+
+            let tagsForCharacter = characterTagsCache.get(avatarFileName);
+
+            // If tags are NOT in the cache, compute and store them
+            if (!tagsForCharacter) {
+                const tagIds = characterTagData[avatarFileName];
+                if (tagIds?.length) {
+                    const tagNames = tagIds
+                        .map(id => tagNamesById[id])
+                        .filter(Boolean);
+
+                    if (tagNames.length) {
+                        tagsForCharacter = {
+                            tagNames,
+                            joinedTagNames: tagNames
+                                .map(name => name?.replace(/,/g, ' ')) // replace commas with spaces to avoid issues with tag names containing commas
+                                .join(','),
+                        };
+                        // Add the newly computed tags to the cache
+                        characterTagsCache.set(avatarFileName, tagsForCharacter);
+                    }
                 }
             }
-        }
 
-        // If we have tags (either from cache or newly computed), apply them
-        if (tagsForCharacter) {
-            applyTags($this, tagsForCharacter);
-        }
-    });
+            // If we have tags (either from cache or newly computed), apply them
+            if (tagsForCharacter) {
+                applyTags($this, tagsForCharacter);
+            }
+        });
+    } catch (error) {
+        console.error('Error applying character tags to message divs:', error);
+    }
 }
 
 /**
