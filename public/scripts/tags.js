@@ -1723,6 +1723,8 @@ async function onTagDeleteClick() {
 
     printCharactersDebounced();
     saveSettingsDebounced();
+
+    applyCharacterTagsToMessageDivs();
 }
 
 function onTagRenameInput() {
@@ -1733,6 +1735,8 @@ function onTagRenameInput() {
     $(this).attr('dirty', '');
     $(`.tag[id="${id}"] .tag_name`).text(newName);
     saveSettingsDebounced();
+
+    applyCharacterTagsToMessageDivs();
 }
 
 /**
