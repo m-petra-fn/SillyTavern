@@ -2053,7 +2053,6 @@ export async function printMessages() {
     showSwipeButtons();
     scrollChatToBottom();
     applyStylePins();
-    applyCharacterTagsToMessageDivs();
 
     function incrementAndCheck() {
         imagesLoaded++;
