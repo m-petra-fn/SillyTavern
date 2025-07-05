@@ -2855,7 +2855,7 @@ export function applyCharacterTagsToMessageDivs({ mesIds = [] } = {}) {
         }
     });
 
-    const { tags: tagsList, tag_map: characterTagData } = settings || {};
+    const tagsList = tags, characterTagData = tag_map;
 
     if (!tagsList?.length || !characterTagData) {
         return;
