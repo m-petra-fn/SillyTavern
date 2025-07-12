@@ -4425,6 +4425,7 @@ async function onDeletePresetClick() {
         toastr.warning(t`Preset was not deleted from server`);
     } else {
         toastr.success(t`Preset deleted`);
+        await eventSource.emit(event_types.PRESET_DELETED, { apiId: 'openai', name: nameToDelete });
     }
 
     saveSettingsDebounced();
@@ -4481,7 +4482,7 @@ function onSettingsPresetChange() {
         settings: oai_settings,
         savePreset: saveOpenAIPreset,
         presetNameBefore: presetNameBefore,
-    }).finally(r => {
+    }).finally(async () => {
         if (oai_settings.bind_preset_to_connection) {
             $('.model_custom_select').empty();
         }
@@ -4516,7 +4517,8 @@ function onSettingsPresetChange() {
         $('#openai_logit_bias_preset').trigger('change');
 
         saveSettingsDebounced();
-        eventSource.emit(event_types.OAI_PRESET_CHANGED_AFTER);
+        await eventSource.emit(event_types.OAI_PRESET_CHANGED_AFTER);
+        await eventSource.emit(event_types.PRESET_CHANGED, { apiId: 'openai', name: presetName });
     });
 }
 
