@@ -1259,12 +1259,12 @@ async function populateChatCompletion(prompts, chatCompletion, { bias, quietProm
  * @param {string} options.quietPrompt - The quiet prompt to be used in the conversation.
  * @param {string} options.bias - The bias to be added in the conversation.
  * @param {Object} options.extensionPrompts - An object containing additional prompts.
- * @param {string} options.systemPromptOverride
- * @param {string} options.jailbreakPromptOverride
- * @param {string} options.personaDescription
+ * @param {string} options.systemPromptOverride - Character card override of the main prompt
+ * @param {string} options.jailbreakPromptOverride - Character card override of the PHI
+ * @param {string} options.type - The type of generation that triggered the prompt
  * @returns {Promise<Object>} prompts - The prepared and merged system and user-defined prompts.
  */
-async function preparePromptsForChatCompletion({ scenario, charPersonality, activeCharContent, combinedCharacters, name2, worldInfoBefore, worldInfoAfter, charDescription, quietPrompt, bias, extensionPrompts, systemPromptOverride, jailbreakPromptOverride, personaDescription }) {
+async function preparePromptsForChatCompletion({ scenario, charPersonality, activeCharContent, combinedCharacters, name2, worldInfoBefore, worldInfoAfter, charDescription, quietPrompt, bias, extensionPrompts, systemPromptOverride, jailbreakPromptOverride, personaDescription, type }) {
     const scenarioText = scenario && oai_settings.scenario_format ? substituteParams(oai_settings.scenario_format) : (scenario || '');
     const charPersonalityText = charPersonality && oai_settings.personality_format ? substituteParams(oai_settings.personality_format) : (charPersonality || '');
     const groupNudge = substituteParams(oai_settings.group_nudge_prompt);
@@ -1369,7 +1369,7 @@ async function preparePromptsForChatCompletion({ scenario, charPersonality, acti
     }
 
     // This is the prompt order defined by the user
-    const prompts = promptManager.getPromptCollection();
+    const prompts = promptManager.getPromptCollection(type);
 
     // Merge system prompts with prompt manager prompts
     systemPrompts.forEach(prompt => {
@@ -1437,7 +1437,6 @@ async function preparePromptsForChatCompletion({ scenario, charPersonality, acti
  * @param {string} content.cyclePrompt - The last prompt used for chat message continuation.
  * @param {string} content.systemPromptOverride - The system prompt override.
  * @param {string} content.jailbreakPromptOverride - The jailbreak prompt override.
- * @param {string} content.personaDescription - The persona description.
  * @param {object} content.extensionPrompts - An array of additional prompts.
  * @param {object[]} content.messages - An array of messages to be used as chat history.
  * @param {string[]} content.messageExamples - An array of messages to be used as dialogue examples.
@@ -1461,7 +1460,6 @@ export async function prepareOpenAIMessages({
     cyclePrompt,
     systemPromptOverride,
     jailbreakPromptOverride,
-    personaDescription,
     messages,
     messageExamples,
 }, dryRun) {
@@ -1490,7 +1488,7 @@ export async function prepareOpenAIMessages({
             extensionPrompts,
             systemPromptOverride,
             jailbreakPromptOverride,
-            personaDescription,
+            type,
         });
 
         // Fill the chat completion with as much context as the budget allows
@@ -6440,6 +6438,11 @@ export function initOpenAI() {
             searchInputCssClass: 'text_pole',
             width: '100%',
             templateResult: getAimlapiModelTemplate,
+        });
+        $('#completion_prompt_manager_popup_entry_form_injection_trigger').select2({
+            placeholder: t`All types (default)`,
+            width: '100%',
+            closeOnSelect: false,
         });
     }
 
