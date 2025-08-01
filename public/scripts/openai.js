@@ -2411,6 +2411,12 @@ export function getStreamingReply(data, state, { chatCompletionSource = null, ov
                 '';
         }
         return data.choices?.[0]?.delta?.content ?? data.choices?.[0]?.message?.content ?? data.choices?.[0]?.text ?? '';
+    } else if (chat_completion_source === chat_completion_sources.MISTRALAI) {
+        if (show_thoughts) {
+            state.reasoning += (data.choices?.filter(x => x?.delta?.content?.[0]?.thinking)?.[0]?.delta?.content?.[0]?.thinking?.[0]?.text || '');
+        }
+        const content = data.choices?.[0]?.delta?.content ?? data.choices?.[0]?.message?.content ?? data.choices?.[0]?.text ?? '';
+        return Array.isArray(content) ? content.map(x => x.text).filter(x => x).join('') : content;
     } else {
         return data.choices?.[0]?.delta?.content ?? data.choices?.[0]?.message?.content ?? data.choices?.[0]?.text ?? '';
     }
@@ -4708,7 +4714,7 @@ async function onModelChange() {
         else if (['command-light-nightly', 'command-light', 'command'].includes(oai_settings.cohere_model)) {
             $('#openai_max_context').attr('max', max_4k);
         }
-        else if (oai_settings.cohere_model.includes('command-r') || ['c4ai-aya-23', 'c4ai-aya-expanse-32b', 'command-nightly'].includes(oai_settings.cohere_model)) {
+        else if (oai_settings.cohere_model.includes('command-r') || ['c4ai-aya-23', 'c4ai-aya-expanse-32b', 'command-nightly', 'command-a-vision-07-2025'].includes(oai_settings.cohere_model)) {
             $('#openai_max_context').attr('max', max_128k);
         }
         else if (['command-a-03-2025'].includes(oai_settings.cohere_model)) {
@@ -5279,6 +5285,7 @@ export function isImageInliningSupported() {
         'claude-sonnet-4',
         // Cohere
         'c4ai-aya-vision',
+        'command-a-vision',
         // Google AI Studio
         'gemini-1.5',
         'gemini-2.0',
