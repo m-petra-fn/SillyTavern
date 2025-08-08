@@ -125,6 +125,7 @@ const max_64k = 65535;
 const max_128k = 128 * 1000;
 const max_200k = 200 * 1000;
 const max_256k = 256 * 1000;
+const max_400k = 400 * 1000;
 const max_1mil = 1000 * 1000;
 const max_2mil = 2000 * 1000;
 const claude_max = 9000; // We have a proper tokenizer, so theoretically could be larger (up to 9k)
@@ -2010,7 +2011,9 @@ function getReasoningEffort() {
         case reasoning_effort_types.auto:
             return undefined;
         case reasoning_effort_types.min:
-            return reasoning_effort_types.low;
+            return chat_completion_sources.OPENAI === oai_settings.chat_completion_source && /^gpt-5/.test(oai_settings.openai_model)
+                ? reasoning_effort_types.min
+                : reasoning_effort_types.low;
         case reasoning_effort_types.max:
             return reasoning_effort_types.high;
         default:
@@ -2284,6 +2287,24 @@ async function sendOpenAIRequest(type, messages, signal, { jsonSchema = null } =
             delete generate_data.n;
             delete generate_data.tools;
             delete generate_data.tool_choice;
+        }
+    }
+
+    if (isOAI && /^gpt-5/.test(oai_settings.openai_model)) {
+        generate_data.max_completion_tokens = generate_data.max_tokens;
+        delete generate_data.max_tokens;
+        delete generate_data.logprobs;
+        delete generate_data.top_logprobs;
+        if (/chat-latest/.test(oai_settings.openai_model)) {
+            delete generate_data.tools;
+            delete generate_data.tool_choice;
+        } else {
+            delete generate_data.temperature;
+            delete generate_data.top_p;
+            delete generate_data.frequency_penalty;
+            delete generate_data.presence_penalty;
+            delete generate_data.logit_bias;
+            delete generate_data.stop;
         }
     }
 
@@ -4283,6 +4304,9 @@ function getMaxContextOpenAI(value) {
     if (oai_settings.max_context_unlocked) {
         return unlocked_max;
     }
+    else if (value.startsWith('gpt-5')) {
+        return max_400k;
+    }
     else if (value.includes('gpt-4.1')) {
         return max_1mil;
     }
@@ -5276,6 +5300,7 @@ export function isImageInliningSupported() {
         'gpt-4.1',
         'gpt-4.5-preview',
         'gpt-4o',
+        'gpt-5',
         'o1',
         'o3',
         'o4-mini',

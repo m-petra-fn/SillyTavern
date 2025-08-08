@@ -2919,6 +2919,15 @@
                             <div>
                                 <h4 data-i18n="OpenAI Model">OpenAI Model</h4>
                                 <select id="model_openai_select">
+                                    <optgroup label="GPT-5">
+                                        <option value="gpt-5">gpt-5</option>
+                                        <option value="gpt-5-2025-08-07">gpt-5-2025-08-07</option>
+                                        <option value="gpt-5-chat-latest">gpt-5-chat-latest</option>
+                                        <option value="gpt-5-mini">gpt-5-mini</option>
+                                        <option value="gpt-5-mini-2025-08-07">gpt-5-mini-2025-08-07</option>
+                                        <option value="gpt-5-nano">gpt-5-nano</option>
+                                        <option value="gpt-5-nano-2025-08-07">gpt-5-nano-2025-08-07</option>
+                                    </optgroup>
                                     <optgroup label="GPT-4o">
                                         <option value="gpt-4o">gpt-4o</option>
                                         <option value="gpt-4o-2024-11-20">gpt-4o-2024-11-20</option>
@@ -3884,6 +3893,10 @@
                                 <label for="instruct_macro" class="checkbox_label">
                                     <input id="instruct_macro" type="checkbox" />
                                     <small data-i18n="Replace Macro in Sequences">Replace Macro in Sequences</small>
+                                </label>
+                                <label for="instruct_sequences_as_stop_strings" class="checkbox_label">
+                                    <input id="instruct_sequences_as_stop_strings" type="checkbox" />
+                                    <small data-i18n="Sequences as Stop Strings">Sequences as Stop Strings</small>
                                 </label>
                                 <label for="instruct_skip_examples" class="checkbox_label">
                                     <input id="instruct_skip_examples" type="checkbox" />
