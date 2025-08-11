@@ -127,7 +127,7 @@ export const group_generation_mode = {
     SEPARATE_LIST: 3,
 };
 
-const DEFAULT_AUTO_MODE_DELAY = 5;
+export const DEFAULT_AUTO_MODE_DELAY = 5;
 
 export const groupCandidatesFilter = new FilterHelper(debounce(printGroupCandidates, debounce_timeout.quick));
 let autoModeWorker = null;
@@ -1255,7 +1255,8 @@ export async function editGroup(id, immediately, reload = true) {
     }
 
     if (id === selected_group) {
-        group['chat_metadata'] = structuredClone(chat_metadata);
+        // structuredClone may cause issues if metadata has non-cloneable references
+        group['chat_metadata'] = JSON.parse(JSON.stringify(chat_metadata));
     }
 
     if (immediately) {
