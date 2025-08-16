@@ -320,7 +320,7 @@ export function initDefaultSlashCommands() {
             SlashCommandArgument.fromProps({
                 description: 'API to connect to',
                 typeList: [ARGUMENT_TYPE.STRING],
-                enumList: Object.entries(CONNECT_API_MAP).map(([api, { selected }]) =>
+                enumList: Object.entries(CONNECT_API_MAP).sort(([a], [b]) => a.localeCompare(b)).map(([api, { selected }]) =>
                     new SlashCommandEnumValue(api, selected, enumTypes.getBasedOnIndex(UNIQUE_APIS.findIndex(x => x === selected)),
                         selected[0].toUpperCase() ?? enumIcons.default)),
             }),
@@ -3737,7 +3737,7 @@ async function generateCallback(args, value) {
 
         setEphemeralStopStrings(resolveVariable(args?.stop));
         const name = args?.name;
-        const char = findChar({ name: name });
+        const char = name ? findChar({ name: name }) : null;
         /** @type {import('../script.js').GenerateQuietPromptParams} */
         const params = {
             quietPrompt: value,
@@ -3745,6 +3745,7 @@ async function generateCallback(args, value) {
             quietName: char?.name ?? name,
             responseLength: length,
             trimToSentence: trim,
+            forceChId: char ? characters.indexOf(char) : null,
         };
         const result = await generateQuietPrompt(params);
         return result;
