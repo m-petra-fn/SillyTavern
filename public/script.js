@@ -5253,7 +5253,13 @@ function extractImageFromData(data, { mainApi = null, chatCompletionSource = nul
                         return `data:${inlineData.mimeType};base64,${inlineData.data}`;
                     }
                 } break;
-
+                case chat_completion_sources.OPENROUTER: {
+                    const imageUrl = data?.choices[0]?.message?.images?.find(x => x.type === 'image_url')?.image_url?.url;
+                    if (isDataURL(imageUrl)) {
+                        return imageUrl;
+                    }
+                    // TODO: Handle remote URLs
+                }
             }
         } break;
     }
@@ -10824,7 +10830,7 @@ jQuery(async function () {
                 }
             } break;
             case 'replace_update': {
-                const confirm = await Popup.show.confirm('Replace Character', '<p>Choose a new character card to replace this character with.</p>All chats, assets and group memberships will be preserved, but local changes to the character data will be lost.<br />Proceed?');
+                const confirm = await Popup.show.confirm(t`Replace Character`, '<p>' + t`Choose a new character card to replace this character with.` + '</p>' + t`All chats, assets and group memberships will be preserved, but local changes to the character data will be lost.` + '<br />' + t`Proceed?`);
                 if (confirm) {
                     async function uploadReplacementCard(e) {
                         const file = e.target.files[0];
