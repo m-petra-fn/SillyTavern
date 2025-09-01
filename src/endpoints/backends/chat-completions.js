@@ -2,6 +2,7 @@ import process from 'node:process';
 import util from 'node:util';
 import express from 'express';
 import fetch from 'node-fetch';
+import urlJoin from 'url-join';
 
 import {
     AIMLAPI_HEADERS,
@@ -221,7 +222,7 @@ async function sendClaudeRequest(request, response) {
             betaHeaders.push('extended-cache-ttl-2025-04-11');
         }
 
-        if (isOpus41){
+        if (isOpus41) {
             if (requestBody.top_p < 1) {
                 delete requestBody.temperature;
             } else {
@@ -497,8 +498,8 @@ async function sendMakerSuiteRequest(request, response) {
                     ? 'https://aiplatform.googleapis.com'
                     : `https://${region}-aiplatform.googleapis.com`;
                 url = projectId
-                    ? `https://aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/${model}:generateContent?key=${keyParam}${stream ? '&alt=sse' : ''}`
-                    : `${baseUrl}/v1/publishers/google/models/${model}:generateContent?key=${keyParam}${stream ? '&alt=sse' : ''}`;
+                    ? `https://aiplatform.googleapis.com/v1/projects/${projectId}/locations/${region}/publishers/google/models/${model}:${responseType}?key=${keyParam}${stream ? '&alt=sse' : ''}`
+                    : `${baseUrl}/v1/publishers/google/models/${model}:${responseType}?key=${keyParam}${stream ? '&alt=sse' : ''}`;
             } else if (authType === 'full') {
                 // For Full mode (service account authentication), use project-specific URL
                 // Get project ID from Service Account JSON
@@ -920,10 +921,7 @@ async function sendDeepSeekRequest(request, response) {
             request.body.messages.push(message);
         }
 
-        const postProcessType = String(request.body.model).endsWith('-reasoner')
-            ? PROMPT_PROCESSING_TYPE.STRICT_TOOLS
-            : PROMPT_PROCESSING_TYPE.SEMI_TOOLS;
-        const processedMessages = addAssistantPrefix(postProcessPrompt(request.body.messages, postProcessType, getPromptNames(request)), bodyParams.tools, 'prefix');
+        const processedMessages = addAssistantPrefix(postProcessPrompt(request.body.messages, PROMPT_PROCESSING_TYPE.SEMI_TOOLS, getPromptNames(request)), bodyParams.tools, 'prefix');
 
         const requestBody = {
             'messages': processedMessages,
@@ -1203,9 +1201,10 @@ export const router = express.Router();
 router.post('/status', async function (request, statusResponse) {
     if (!request.body) return statusResponse.sendStatus(400);
 
-    let apiUrl;
-    let apiKey;
-    let headers;
+    let apiUrl = '';
+    let apiKey = '';
+    let headers = {};
+    let queryParams = {};
 
     if (request.body.chat_completion_source === CHAT_COMPLETION_SOURCES.OPENAI) {
         apiUrl = new URL(request.body.reverse_proxy || API_OPENAI).toString();
@@ -1233,12 +1232,13 @@ router.post('/status', async function (request, statusResponse) {
         apiUrl = API_NANOGPT;
         apiKey = readSecret(request.user.directories, SECRET_KEYS.NANOGPT);
         headers = {};
+        queryParams = { detailed: true };
     } else if (request.body.chat_completion_source === CHAT_COMPLETION_SOURCES.DEEPSEEK) {
-        apiUrl = new URL(request.body.reverse_proxy || API_DEEPSEEK.replace('/beta', ''));
+        apiUrl = new URL(request.body.reverse_proxy || API_DEEPSEEK.replace('/beta', '')).toString();
         apiKey = request.body.reverse_proxy ? request.body.proxy_password : readSecret(request.user.directories, SECRET_KEYS.DEEPSEEK);
         headers = {};
     } else if (request.body.chat_completion_source === CHAT_COMPLETION_SOURCES.XAI) {
-        apiUrl = new URL(request.body.reverse_proxy || API_XAI);
+        apiUrl = new URL(request.body.reverse_proxy || API_XAI).toString();
         apiKey = request.body.reverse_proxy ? request.body.proxy_password : readSecret(request.user.directories, SECRET_KEYS.XAI);
         headers = {};
     } else if (request.body.chat_completion_source === CHAT_COMPLETION_SOURCES.AIMLAPI) {
@@ -1313,7 +1313,11 @@ router.post('/status', async function (request, statusResponse) {
     }
 
     try {
-        const response = await fetch(apiUrl + '/models', {
+        const modelsUrl = new URL(urlJoin(apiUrl, '/models'));
+        Object.keys(queryParams).forEach(key => {
+            modelsUrl.searchParams.append(key, queryParams[key]);
+        });
+        const response = await fetch(modelsUrl, {
             method: 'GET',
             headers: {
                 'Authorization': 'Bearer ' + apiKey,
@@ -1648,7 +1652,17 @@ router.post('/generate', function (request, response) {
         if (request.body.enable_web_search && !/:online$/.test(request.body.model)) {
             request.body.model = `${request.body.model}:online`;
         }
-    } else if (request.body.chat_completion_source === CHAT_COMPLETION_SOURCES.POLLINATIONS) {
+        const enableSystemPromptCache = getConfigValue('claude.enableSystemPromptCache', false, 'boolean');
+        const isClaude3or4 = /claude-(3|opus-4|sonnet-4)/.test(request.body.model);
+        const cacheTTL = getConfigValue('claude.extendedTTL', false, 'boolean') ? '1h' : '5m';
+        if (enableSystemPromptCache && isClaude3or4) {
+            bodyParams['cache_control'] = {
+                'enabled': true,
+                'ttl': cacheTTL,
+            };
+        }
+    }
+    else if (request.body.chat_completion_source === CHAT_COMPLETION_SOURCES.POLLINATIONS) {
         apiUrl = API_POLLINATIONS;
         apiKey = 'NONE';
         headers = {
@@ -1854,9 +1868,9 @@ router.post('/generate', function (request, response) {
     }
 });
 
-const pollinations = express.Router();
+const multimodalModels = express.Router();
 
-pollinations.post('/models/multimodal', async (_req, res) => {
+multimodalModels.post('/pollinations', async (_req, res) => {
     try {
         const response = await fetch('https://text.pollinations.ai/models');
 
@@ -1879,11 +1893,7 @@ pollinations.post('/models/multimodal', async (_req, res) => {
     }
 });
 
-router.use('/pollinations', pollinations);
-
-const aimlapi = express.Router();
-
-aimlapi.post('/models/multimodal', async (_req, res) => {
+multimodalModels.post('/aimlapi', async (_req, res) => {
     try {
         const response = await fetch('https://api.aimlapi.com/v1/models');
 
@@ -1906,4 +1916,27 @@ aimlapi.post('/models/multimodal', async (_req, res) => {
     }
 });
 
-router.use('/aimlapi', aimlapi);
+multimodalModels.post('/nanogpt', async (_req, res) => {
+    try {
+        const response = await fetch('https://nano-gpt.com/api/v1/models?detailed=true');
+
+        if (!response.ok) {
+            return res.json([]);
+        }
+
+        /** @type {any} */
+        const data = await response.json();
+
+        if (!Array.isArray(data?.data)) {
+            return res.json([]);
+        }
+
+        const multimodalModels = data.data.filter(m => m?.capabilities?.vision).map(m => m.id);
+        return res.json(multimodalModels);
+    } catch (error) {
+        console.error(error);
+        return res.sendStatus(500);
+    }
+});
+
+router.use('/multimodal-models', multimodalModels);
