@@ -5386,6 +5386,7 @@ export function extractJsonFromData(data, { mainApi = null, chatCompletionSource
                 case chat_completion_sources.COHERE:
                 case chat_completion_sources.XAI:
                 case chat_completion_sources.ELECTRONHUB:
+                case chat_completion_sources.AZURE_OPENAI:
                 default:
                     result = tryParse(text);
                     break;
