@@ -3,6 +3,7 @@ import {
     DOMPurify,
     Readability,
     isProbablyReaderable,
+    lodash,
 } from '../lib.js';
 
 import { getContext } from './extensions.js';
@@ -2561,4 +2562,54 @@ export function textValueMatcher(params, data) {
  */
 export function versionCompare(srcVersion, minVersion) {
     return (srcVersion || '0.0.0').localeCompare(minVersion, undefined, { numeric: true, sensitivity: 'base' }) > -1;
+}
+
+/**
+ * Sets up the scroll-to-top button functionality.
+ * @param {object} params Parameters object
+ * @param {string} params.scrollContainerId Scrollable container element ID
+ * @param {string} params.buttonId Button element ID
+ * @param {string} params.drawerId Drawer element ID
+ * @param {number} [params.visibilityThreshold] Scroll position (px) to show the button (default: 300)
+ * @returns {() => void} Cleanup function to remove event listeners
+ */
+export function setupScrollToTop({ scrollContainerId, buttonId, drawerId, visibilityThreshold = 300 }) {
+    const scrollContainer = document.getElementById(scrollContainerId);
+    const btn = document.getElementById(buttonId);
+    const drawer = document.getElementById(drawerId);
+
+    if (!btn || !drawer) {
+        // Not fatal; the drawer or button may not exist in some builds. Use debug level.
+        console.debug('Scroll-to-top: button or drawer not found during setup.');
+        return () => { /* noop cleanup */ };
+    }
+
+    if (!scrollContainer) {
+        console.debug('Scroll-to-top: scroll container not found during setup.');
+        return () => { /* noop cleanup */ };
+    }
+
+    const updateButtonVisibility = () => btn.classList.toggle('visible', scrollContainer.scrollTop > visibilityThreshold);
+    const updateButtonVisibilityThrottled = lodash.throttle(updateButtonVisibility, debounce_timeout.standard, { leading: true, trailing: true });
+    const onScroll = () => updateButtonVisibilityThrottled();
+    scrollContainer.addEventListener('scroll', onScroll, { passive: true });
+
+    // Scroll to top on click (button semantics provide keyboard activation natively)
+    const onActivate = (/** @type {MouseEvent} */ e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const userPrefersReduced = power_user.reduced_motion;
+        scrollContainer.scrollTo({ top: 0, behavior: userPrefersReduced ? 'auto' : 'smooth' });
+    };
+    btn.addEventListener('click', onActivate);
+
+    // Initial state check
+    updateButtonVisibility();
+
+    // Return cleanup function for caller to hold and invoke when appropriate
+    return () => {
+        scrollContainer.removeEventListener('scroll', onScroll);
+        btn.removeEventListener('click', onActivate);
+    };
 }
