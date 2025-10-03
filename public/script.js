@@ -43,7 +43,6 @@ import {
     importEmbeddedWorldInfo,
     checkEmbeddedWorld,
     setWorldInfoButtonClass,
-    importWorldInfo,
     wi_anchor_position,
     world_info_include_names,
     initWorldInfo,
@@ -175,6 +174,7 @@ import {
     localizePagination,
     renderPaginationDropdown,
     paginationDropdownChangeHandler,
+    importFromExternalUrl,
 } from './scripts/utils.js';
 import { debounce_timeout, GENERATION_TYPE_TRIGGERS, IGNORE_SYMBOL, inject_ids } from './scripts/constants.js';
 
@@ -2253,6 +2253,33 @@ export function substituteParams(content, _name1, _name2, _original, _group, _re
         }
     };
 
+    const getNotCharValue = () => {
+        const currentUser = _name1 ?? name1;
+        const currentSpeaker = _name2 ?? name2;
+
+        // Single character chat
+        if (!selected_group) {
+            return currentUser;
+        }
+
+        // Group chat
+        const members = groups.find(x => x.id === selected_group)?.members;
+
+        if (!Array.isArray(members)) {
+            return currentUser;
+        }
+
+        const memberNames = members
+            .map(m => characters.find(c => c.avatar === m)?.name)
+            .filter(Boolean); // Filter out any null/undefined names
+
+        // Filter out the current speaker and add the user
+        const otherMembers = memberNames.filter(name => name !== currentSpeaker);
+        otherMembers.push(currentUser);
+
+        return otherMembers.join(', ');
+    };
+
     if (_replaceCharacterCard) {
         const fields = getCharacterCardFields();
         environment.charPrompt = fields.system || '';
@@ -2284,6 +2311,7 @@ export function substituteParams(content, _name1, _name2, _original, _group, _re
     environment.char = _name2 ?? name2;
     environment.group = environment.charIfNotGroup = getGroupValue(true);
     environment.groupNotMuted = getGroupValue(false);
+    environment.notChar = getNotCharValue();
     environment.model = getGeneratingModel();
 
     if (additionalMacro && typeof additionalMacro === 'object') {
@@ -5707,9 +5735,9 @@ export async function saveReply({ type, getMessage, fromStreaming = false, title
                 chat[chat.length - 1]['extra']['token_count'] = await getTokenCountAsync(tokenCountText, 0);
             }
             const chat_id = (chat.length - 1);
-            await eventSource.emit(event_types.MESSAGE_RECEIVED, chat_id, type);
+            !fromStreaming && await eventSource.emit(event_types.MESSAGE_RECEIVED, chat_id, type);
             addOneMessage(chat[chat_id], { type: 'swipe' });
-            await eventSource.emit(event_types.CHARACTER_MESSAGE_RENDERED, chat_id, type);
+            !fromStreaming && await eventSource.emit(event_types.CHARACTER_MESSAGE_RENDERED, chat_id, type);
         } else {
             chat[chat.length - 1]['mes'] = getMessage;
         }
@@ -5731,9 +5759,9 @@ export async function saveReply({ type, getMessage, fromStreaming = false, title
             chat[chat.length - 1]['extra']['token_count'] = await getTokenCountAsync(tokenCountText, 0);
         }
         const chat_id = (chat.length - 1);
-        await eventSource.emit(event_types.MESSAGE_RECEIVED, chat_id, type);
+        !fromStreaming && await eventSource.emit(event_types.MESSAGE_RECEIVED, chat_id, type);
         addOneMessage(chat[chat_id], { type: 'swipe' });
-        await eventSource.emit(event_types.CHARACTER_MESSAGE_RENDERED, chat_id, type);
+        !fromStreaming && await eventSource.emit(event_types.CHARACTER_MESSAGE_RENDERED, chat_id, type);
     } else if (type === 'appendFinal') {
         oldMessage = chat[chat.length - 1]['mes'];
         console.debug('Trying to appendFinal.');
@@ -5752,9 +5780,9 @@ export async function saveReply({ type, getMessage, fromStreaming = false, title
             chat[chat.length - 1]['extra']['token_count'] = await getTokenCountAsync(tokenCountText, 0);
         }
         const chat_id = (chat.length - 1);
-        await eventSource.emit(event_types.MESSAGE_RECEIVED, chat_id, type);
+        !fromStreaming && await eventSource.emit(event_types.MESSAGE_RECEIVED, chat_id, type);
         addOneMessage(chat[chat_id], { type: 'swipe' });
-        await eventSource.emit(event_types.CHARACTER_MESSAGE_RENDERED, chat_id, type);
+        !fromStreaming && await eventSource.emit(event_types.CHARACTER_MESSAGE_RENDERED, chat_id, type);
 
     } else {
         console.debug('entering chat update routine for non-swipe post');
@@ -8916,6 +8944,8 @@ async function importCharacter(file, { preserveFileName = '', importTags = false
         return;
     }
 
+    const exists = preserveFileName ? characters.find(character => character.avatar === preserveFileName) : undefined;
+
     const format = ext[1].toLowerCase();
     $('#character_import_file_type').val(format);
     const formData = new FormData();
@@ -8942,10 +8972,20 @@ async function importCharacter(file, { preserveFileName = '', importTags = false
         }
 
         if (data.file_name !== undefined) {
+            let avatarFileName = `${data.file_name}.png`;
+
+            // Refresh existing thumbnail
+            if (exists && this_chid !== undefined) {
+                await fetch(getThumbnailUrl('avatar', avatarFileName), { cache: 'reload' });
+            }
+
             $('#character_search_bar').val('').trigger('input');
 
-            toastr.success(t`Character Created: ${String(data.file_name).replace('.png', '')}`);
-            let avatarFileName = `${data.file_name}.png`;
+            if (exists) {
+                toastr.success(t`Character Replaced: ${String(data.file_name).replace('.png', '')}`);
+            } else {
+                toastr.success(t`Character Created: ${String(data.file_name).replace('.png', '')}`);
+            }
             if (importTags) {
                 await importCharactersTags([avatarFileName]);
                 selectImportedChar(data.file_name);
@@ -10880,27 +10920,66 @@ jQuery(async function () {
                 }
             } break;
             case 'replace_update': {
-                const confirm = await Popup.show.confirm(t`Replace Character`, '<p>' + t`Choose a new character card to replace this character with.` + '</p>' + t`All chats, assets and group memberships will be preserved, but local changes to the character data will be lost.` + '<br />' + t`Proceed?`);
-                if (confirm) {
-                    async function uploadReplacementCard(e) {
-                        const file = e.target.files[0];
+                let onlineUrl = getCharacterSource(this_chid);
 
-                        if (!file) {
-                            return;
-                        }
+                const POPUP_RESULT_URL = POPUP_RESULT.CUSTOM1, POPUP_RESULT_FILE = POPUP_RESULT.CUSTOM2;
+                const result = await Popup.show.confirm(t`Replace Character`,
+                    `<p>${t`Choose a new character card to replace this character with.`}</p>` +
+                    `<p>${t`You can also replace this character with the one from the online source.`}${onlineUrl ? `<br />This character was downloaded from: <var>${onlineUrl}</var>` : ''}</p>` +
+                    `<p>${t`All chats, assets and group memberships will be preserved, but local changes to the character data will be lost.`}<br />${t`Proceed?`}</p>`,
+                    {
+                        okButton: false,
+                        customButtons: [{
+                            text: t`Replace with URL`,
+                            result: POPUP_RESULT_URL,
+                            classes: ['popup-button-ok'],
+                        }, {
+                            text: t`Replace with File`,
+                            result: POPUP_RESULT_FILE,
+                            classes: ['popup-button-ok'],
+                        }],
+                        defaultResult: onlineUrl ? POPUP_RESULT_URL : POPUP_RESULT_FILE,
+                    });
 
-                        try {
-                            const chatFile = characters[this_chid]['chat'];
-                            const data = new Map();
-                            data.set(file, characters[this_chid].avatar);
-                            await processDroppedFiles([file], data);
-                            await openCharacterChat(chatFile);
-                            await fetch(getThumbnailUrl('avatar', characters[this_chid].avatar), { cache: 'reload' });
-                        } catch {
-                            toastr.error('Failed to replace the character card.', 'Something went wrong');
+                // Remember the chat currently selected, so we can reload it after the replacement
+                const currentChatFile = characters[this_chid]['chat'];
+                async function postReplace() {
+                    await openCharacterChat(currentChatFile);
+                }
+
+                switch (result) {
+                    case POPUP_RESULT_FILE: {
+                        async function uploadReplacementCard(e) {
+                            const file = e.target.files[0];
+                            if (!file) {
+                                return;
+                            }
+
+                            try {
+                                const data = new Map();
+                                data.set(file, characters[this_chid].avatar);
+                                await processDroppedFiles([file], data);
+                                await postReplace();
+                            } catch {
+                                toastr.error('Failed to replace the character card.', 'Something went wrong');
+                            }
                         }
+                        $('#character_replace_file').off('change').on('change', uploadReplacementCard).trigger('click');
+                        break;
                     }
-                    $('#character_replace_file').off('change').on('change', uploadReplacementCard).trigger('click');
+                    case POPUP_RESULT_URL: {
+                        const inputUrl = await Popup.show.input(t`Replace Character from URL`,
+                            `<p>${t`Enter the URL of the character card to replace this character with.`}</p>` +
+                            (onlineUrl ? `<p>${t`This character was downloaded from: <var>${onlineUrl}</var>`}</p>` : ''),
+                            onlineUrl);
+                        if (!inputUrl) {
+                            break;
+                        }
+                        onlineUrl = inputUrl;
+                        await importFromExternalUrl(onlineUrl, { preserveFileName: characters[this_chid].avatar });
+                        await postReplace();
+                        break;
+                    }
                 }
             } break;
             case 'import_tags': {
@@ -11011,47 +11090,7 @@ jQuery(async function () {
         const inputs = String(input).split('\n').map(x => x.trim()).filter(x => x.length > 0);
 
         for (const url of inputs) {
-            let request;
-
-            if (isValidUrl(url)) {
-                console.debug('Custom content import started for URL: ', url);
-                request = await fetch('/api/content/importURL', {
-                    method: 'POST',
-                    headers: getRequestHeaders(),
-                    body: JSON.stringify({ url }),
-                });
-            } else {
-                console.debug('Custom content import started for Char UUID: ', url);
-                request = await fetch('/api/content/importUUID', {
-                    method: 'POST',
-                    headers: getRequestHeaders(),
-                    body: JSON.stringify({ url }),
-                });
-            }
-
-            if (!request.ok) {
-                toastr.info(request.statusText, 'Custom content import failed');
-                console.error('Custom content import failed', request.status, request.statusText);
-                return;
-            }
-
-            const data = await request.blob();
-            const customContentType = request.headers.get('X-Custom-Content-Type');
-            const fileName = request.headers.get('Content-Disposition').split('filename=')[1].replace(/"/g, '');
-            const file = new File([data], fileName, { type: data.type });
-
-            switch (customContentType) {
-                case 'character':
-                    await processDroppedFiles([file]);
-                    break;
-                case 'lorebook':
-                    await importWorldInfo(file);
-                    break;
-                default:
-                    toastr.warning('Unknown content type');
-                    console.error('Unknown content type', customContentType);
-                    break;
-            }
+            await importFromExternalUrl(url);
         }
     });
 
