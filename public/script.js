@@ -3205,12 +3205,34 @@ export async function generateRaw({ prompt = '', api = null, instructOverride = 
     // construct final prompt from the input. Can either be a string or an array of chat-style messages.
     prompt = createRawPrompt(prompt, api, instructOverride, quietToLoud, systemPrompt, prefill);
 
+    // Allow extensions to stop generation before it happens
+    const eventAbortController = new AbortController();
+    const abortHook = () => eventAbortController.abort(new Error('Cancelled by extension'));
+    eventSource.on(event_types.GENERATION_STOPPED, abortHook);
+
     try {
         if (responseLengthCustomized) {
             TempResponseLength.save(api, responseLength);
         }
         /** @type {object|any[]} */
         let generateData = {};
+
+        // Allow extensions to modify the prompt before generation
+        // 1. for text completion
+        if (typeof prompt === 'string') {
+            const eventData = { prompt: prompt, dryRun: false };
+            await eventSource.emit(event_types.GENERATE_AFTER_COMBINE_PROMPTS, eventData);
+            prompt = eventData.prompt;
+        }
+        // 2. for chat completion
+        if (Array.isArray(prompt)) {
+            const eventData = { chat: prompt, dryRun: false };
+            await eventSource.emit(event_types.CHAT_COMPLETION_PROMPT_READY, eventData);
+            prompt = eventData.chat;
+        }
+
+        // Check if the generation was aborted during the event
+        eventAbortController.signal.throwIfAborted();
 
         switch (api) {
             case 'kobold':
@@ -3291,6 +3313,7 @@ export async function generateRaw({ prompt = '', api = null, instructOverride = 
 
         return message;
     } finally {
+        eventSource.removeListener(event_types.GENERATION_STOPPED, abortHook);
         if (responseLengthCustomized && TempResponseLength.isCustomized()) {
             TempResponseLength.restore(api);
             TempResponseLength.removeEventHook(api, eventHook);
@@ -7532,7 +7555,7 @@ export function select_rm_info(type, charId, previousCharId = null) {
 
 /**
  * Selects the right menu for displaying the character editor.
- * @param {number|string} chid Character array index
+ * @param {string} chid Character array index
  * @param {object} [param1] Options for the switch
  * @param {boolean} [param1.switchMenu=true] Whether to switch the menu
  */
@@ -7609,6 +7632,11 @@ export function select_selected_character(chid, { switchMenu = true } = {}) {
     $('#character_open_media_overrides').toggle(!selected_group);
     $('#character_media_allowed_icon').toggle(externalMediaState);
     $('#character_media_forbidden_icon').toggle(!externalMediaState);
+
+    // Update some stuff about the char management dropdown
+    $('#character_source').attr('disabled', selected_group || !getCharacterSource(chid) ? '' : null);
+
+    eventSource.emit(event_types.CHARACTER_EDITOR_OPENED, chid);
 
     saveSettingsDebounced();
 }
@@ -7964,6 +7992,8 @@ export async function deleteSwipe(swipeId = null) {
     // Select the next swipe, or the one before if it was the last one
     const newSwipeId = Math.min(swipeId, lastMessage.swipes.length - 1);
     syncSwipeToMes(null, newSwipeId);
+
+    await eventSource.emit(event_types.MESSAGE_SWIPE_DELETED, { swipeId, newSwipeId });
 
     await saveChatConditional();
     await reloadCurrentChat();
