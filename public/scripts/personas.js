@@ -1131,7 +1131,7 @@ function onPersonaDescriptionInput() {
         object.description = power_user.persona_description;
     }
 
-    $(`.avatar-container[imgfile="${user_avatar}"] .ch_description`)
+    $(`.avatar-container[data-avatar-id="${user_avatar}"] .ch_description`)
         .text(power_user.persona_description || $('#user_avatar_block').attr('no_desc_text'))
         .toggleClass('text_muted', !power_user.persona_description);
     saveSettingsDebounced();
@@ -1559,7 +1559,7 @@ async function loadPersonaForCurrentChat({ doRender = false } = {}) {
 export function getConnectedPersonas(characterKey = undefined) {
     characterKey ??= selected_group || characters[Number(this_chid)]?.avatar;
     const connectedPersonas = Object.entries(power_user.persona_descriptions)
-        .filter(([_, desc]) => desc.connections?.some(conn => conn.type === 'character' && conn.id === characterKey))
+        .filter(([_, { connections }]) => connections?.some(conn => conn.id === characterKey))
         .map(([key, _]) => key);
     return connectedPersonas;
 }
