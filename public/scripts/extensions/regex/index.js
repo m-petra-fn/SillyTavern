@@ -12,6 +12,9 @@ import { getRegexScripts, getScriptsByType, regex_placement, runRegexScript, SCR
 import { t } from '../../i18n.js';
 import { accountStorage } from '../../util/AccountStorage.js';
 
+// Re-exports for legacy extensions
+export { getRegexScripts };
+
 const sanitizeFileName = name => name.replace(/[\s.<>:"/\\|?*\x00-\x1F\x7F]/g, '_').toLowerCase();
 
 /**
