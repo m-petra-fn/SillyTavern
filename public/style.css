@@ -3014,6 +3014,11 @@ select option[disabled]:not(:checked) {
     display: block;
 }
 
+/* Fix font size difference in API Connections dropdowns - Issue #4599 */
+#custom_model_id {
+    font-size: calc(var(--mainFontSize) * 0.95);
+}
+
 .menu_button.api_button:hover {
     background-color: var(--active);
 }
