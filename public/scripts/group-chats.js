@@ -2221,7 +2221,7 @@ function doCurMemberListPopout() {
         // Remove pagination from popout
         newElement.find('.group_pagination').empty();
 
-        $('body').append(newElement);
+        $('#movingDivs').append(newElement);
         loadMovingUIState();
         $('#groupMemberListPopout').fadeIn(animation_duration);
         dragElement(newElement);
