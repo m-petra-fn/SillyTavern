@@ -5041,12 +5041,12 @@ async function onModelChange() {
 
     if (oai_settings.chat_completion_source == chat_completion_sources.CLAUDE) {
         if (oai_settings.max_context_unlocked) {
-            $('#openai_max_context').attr('max', max_200k);
+            $('#openai_max_context').attr('max', unlocked_max);
         }
         else if (value.startsWith('claude-sonnet-4-5')) {
             $('#openai_max_context').attr('max', max_1mil);
         }
-        else if (value == 'claude-2.1' || value.startsWith('claude-3') || value.startsWith('claude-opus') || value.startsWith('claude-sonnet')) {
+        else if (value == 'claude-2.1' || value.startsWith('claude-3') || value.startsWith('claude-opus') || value.startsWith('claude-haiku') || value.startsWith('claude-sonnet')) {
             $('#openai_max_context').attr('max', max_200k);
         }
         else if (value.endsWith('100k') || value.startsWith('claude-2') || value === 'claude-instant-1.2') {
