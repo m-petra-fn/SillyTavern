@@ -35,6 +35,24 @@ export const localizePagination = function(container) {
 };
 
 /**
+ * Checks if the current environment supports negative lookbehind in regular expressions.
+ * @returns {boolean} True if negative lookbehind is supported, false otherwise.
+ */
+export function canUseNegativeLookbehind() {
+    let result = canUseNegativeLookbehind['result'];
+    if (typeof result !== 'boolean') {
+        try {
+            new RegExp('(?<!_)');
+            result = true;
+        } catch (e) {
+            result = false;
+        }
+        canUseNegativeLookbehind['result'] = result;
+    }
+    return result;
+}
+
+/**
  * Renders a dropdown for selecting page size in pagination.
  * @param {number} pageSize Page size
  * @param {number[]} sizeChangerOptions Array of page size options
