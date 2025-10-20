@@ -2760,7 +2760,7 @@ function parseOpenAIChatLogprobs(logprobs) {
     /** @type {(x: { token: string, logprob: number }) => [string, number]} */
     const toTuple = (x) => [x.token, x.logprob];
 
-    return content.map(({ token, logprob, top_logprobs }) => {
+    return content.map(({ token, logprob, top_logprobs = [] }) => {
         // Add the chosen token to top_logprobs if it's not already there, then
         // convert to a list of [token, logprob] pairs
         const chosenTopToken = top_logprobs.some((top) => token === top.token);
@@ -4079,6 +4079,8 @@ async function saveOpenAIPreset(name, settings, triggerUi = true) {
         custom_prompt_post_processing: settings.custom_prompt_post_processing,
         google_model: settings.google_model,
         vertexai_model: settings.vertexai_model,
+        nanogpt_model: settings.nanogpt_model,
+        deepseek_model: settings.deepseek_model,
         azure_base_url: settings.azure_base_url,
         azure_deployment_name: settings.azure_deployment_name,
         azure_api_version: settings.azure_api_version,
