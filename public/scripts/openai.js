@@ -189,6 +189,7 @@ export const chat_completion_sources = {
     FIREWORKS: 'fireworks',
     COMETAPI: 'cometapi',
     AZURE_OPENAI: 'azure_openai',
+    ZAI: 'zai',
 };
 
 const character_names_behavior = {
@@ -294,6 +295,7 @@ export const settingsToUpdate = {
     custom_prompt_post_processing: ['#custom_prompt_post_processing', 'custom_prompt_post_processing', false, true],
     google_model: ['#model_google_select', 'google_model', false, true],
     vertexai_model: ['#model_vertexai_select', 'vertexai_model', false, true],
+    zai_model: ['#model_zai_select', 'zai_model', false, true],
     openai_max_context: ['#openai_max_context', 'openai_max_context', false, false],
     openai_max_tokens: ['#openai_max_tokens', 'openai_max_tokens', false, false],
     wrap_in_quotes: ['#wrap_in_quotes', 'wrap_in_quotes', true, false],
@@ -391,6 +393,7 @@ const default_settings = {
     cometapi_model: 'gpt-4o',
     moonshot_model: 'kimi-latest',
     fireworks_model: 'accounts/fireworks/models/kimi-k2-instruct',
+    zai_model: 'glm-4.6',
     azure_base_url: '',
     azure_deployment_name: '',
     azure_api_version: '2024-02-15-preview',
@@ -487,6 +490,7 @@ const oai_settings = {
     cometapi_model: 'gpt-4o',
     moonshot_model: 'kimi-latest',
     fireworks_model: 'accounts/fireworks/models/kimi-k2-instruct',
+    zai_model: 'glm-4.6',
     azure_base_url: '',
     azure_deployment_name: '',
     azure_api_version: '2024-02-15-preview',
@@ -1544,7 +1548,7 @@ export async function prepareOpenAIMessages({
     const eventData = { chat, dryRun };
     await eventSource.emit(event_types.CHAT_COMPLETION_PROMPT_READY, eventData);
 
-    openai_messages_count = chat.filter(x => !x?.tool_calls && (x?.role === 'user' || x?.role === 'assistant'))?.length || 0;
+    openai_messages_count = chat.filter(x => !x?.tool_calls && ['user', 'assistant', 'tool'].includes(x?.role)).length || 0;
 
     return [chat, promptManager.tokenHandler.counts];
 }
@@ -1676,6 +1680,8 @@ export function getChatCompletionModel(source = null) {
             return oai_settings.fireworks_model;
         case chat_completion_sources.AZURE_OPENAI:
             return oai_settings.azure_openai_model;
+        case chat_completion_sources.ZAI:
+            return oai_settings.zai_model;
         default:
             console.error(`Unknown chat completion source: ${activeSource}`);
             return '';
@@ -1933,7 +1939,7 @@ function saveModelList(data) {
     }
 
     if (oai_settings.chat_completion_source === chat_completion_sources.MAKERSUITE) {
-    // Clear only the "Other" optgroup for dynamic models
+        // Clear only the "Other" optgroup for dynamic models
         $('#google_other_models').empty();
 
         // Get static model options that are already in the HTML
@@ -1944,7 +1950,7 @@ function saveModelList(data) {
 
         // Add dynamic models to the "Other" group
         model_list.forEach((model) => {
-        // Only add if not already in static list
+            // Only add if not already in static list
             if (!staticModels.includes(model.id)) {
                 $('#google_other_models').append(
                     $('<option>', {
@@ -2311,7 +2317,8 @@ async function sendOpenAIRequest(type, messages, signal, { jsonSchema = null } =
     const isXAI = oai_settings.chat_completion_source == chat_completion_sources.XAI;
     const isPollinations = oai_settings.chat_completion_source == chat_completion_sources.POLLINATIONS;
     const isMoonshot = oai_settings.chat_completion_source == chat_completion_sources.MOONSHOT;
-    const isAzureOpenAI = oai_settings.chat_completion_source == chat_completion_sources.AZURE_OPENAI; // Add this line
+    const isAzureOpenAI = oai_settings.chat_completion_source == chat_completion_sources.AZURE_OPENAI;
+    const isZai = oai_settings.chat_completion_source == chat_completion_sources.ZAI;
     const isTextCompletion = isOAI && textCompletionModels.includes(oai_settings.openai_model);
     const isQuiet = type === 'quiet';
     const isImpersonate = type === 'impersonate';
@@ -2512,6 +2519,14 @@ async function sendOpenAIRequest(type, messages, signal, { jsonSchema = null } =
         generate_data['top_k'] = Number(oai_settings.top_k_openai);
     }
 
+    // https://docs.z.ai/api-reference/llm/chat-completion
+    if (isZai) {
+        generate_data['top_p'] = generate_data.top_p || 0.01;
+        generate_data['stop'] = getCustomStoppingStrings(1);
+        delete generate_data.presence_penalty;
+        delete generate_data.frequency_penalty;
+    }
+
     const seedSupportedSources = [
         chat_completion_sources.OPENAI,
         chat_completion_sources.AZURE_OPENAI,
@@ -2693,7 +2708,7 @@ export function getStreamingReply(data, state, { chatCompletionSource = null, ov
             state.reasoning += (data.choices?.filter(x => x?.delta?.reasoning)?.[0]?.delta?.reasoning || '');
         }
         return data.choices?.[0]?.delta?.content ?? data.choices?.[0]?.message?.content ?? data.choices?.[0]?.text ?? '';
-    } else if ([chat_completion_sources.CUSTOM, chat_completion_sources.POLLINATIONS, chat_completion_sources.AIMLAPI, chat_completion_sources.MOONSHOT, chat_completion_sources.COMETAPI, chat_completion_sources.ELECTRONHUB, chat_completion_sources.NANOGPT].includes(chat_completion_source)) {
+    } else if ([chat_completion_sources.CUSTOM, chat_completion_sources.POLLINATIONS, chat_completion_sources.AIMLAPI, chat_completion_sources.MOONSHOT, chat_completion_sources.COMETAPI, chat_completion_sources.ELECTRONHUB, chat_completion_sources.NANOGPT, chat_completion_sources.ZAI].includes(chat_completion_source)) {
         if (show_thoughts) {
             state.reasoning +=
                 data.choices?.filter(x => x?.delta?.reasoning_content)?.[0]?.delta?.reasoning_content ??
@@ -3667,6 +3682,7 @@ function loadOpenAISettings(data, settings) {
     oai_settings.cometapi_model = settings.cometapi_model ?? default_settings.cometapi_model;
     oai_settings.moonshot_model = settings.moonshot_model ?? default_settings.moonshot_model;
     oai_settings.fireworks_model = settings.fireworks_model ?? default_settings.fireworks_model;
+    oai_settings.zai_model = settings.zai_model ?? default_settings.zai_model;
     oai_settings.custom_model = settings.custom_model ?? default_settings.custom_model;
     oai_settings.custom_url = settings.custom_url ?? default_settings.custom_url;
     oai_settings.custom_include_body = settings.custom_include_body ?? default_settings.custom_include_body;
@@ -3772,6 +3788,8 @@ function loadOpenAISettings(data, settings) {
     $(`#model_pollinations_select option[value="${oai_settings.pollinations_model}"`).prop('selected', true);
     $('#model_moonshot_select').val(oai_settings.moonshot_model);
     $(`#model_moonshot_select option[value="${oai_settings.moonshot_model}"`).prop('selected', true);
+    $('#model_zai_select').val(oai_settings.zai_model);
+    $(`#model_zai_select option[value="${oai_settings.zai_model}"`).prop('selected', true);
     $('#custom_model_id').val(oai_settings.custom_model);
     $('#custom_api_url_text').val(oai_settings.custom_url);
     $('#azure_base_url').val(oai_settings.azure_base_url);
@@ -3945,6 +3963,7 @@ async function getStatusOpen() {
         chat_completion_sources.AI21,
         chat_completion_sources.VERTEXAI,
         chat_completion_sources.PERPLEXITY,
+        chat_completion_sources.ZAI,
     ];
     if (noValidateSources.includes(oai_settings.chat_completion_source)) {
         let status = t`Key saved; press \"Test Message\" to verify.`;
@@ -4071,6 +4090,7 @@ async function saveOpenAIPreset(name, settings, triggerUi = true) {
         moonshot_model: settings.moonshot_model,
         fireworks_model: settings.fireworks_model,
         cometapi_model: settings.cometapi_model,
+        zai_model: settings.zai_model,
         custom_model: settings.custom_model,
         custom_url: settings.custom_url,
         custom_include_body: settings.custom_include_body,
@@ -4725,6 +4745,29 @@ function getGroqMaxContext(model, isUnlocked) {
     return Object.entries(contextMap).find(([key]) => model.includes(key))?.[1] || max_128k;
 }
 
+/**
+ * Get the maximum context size for the Z.AI model
+ * @param {string} model Model identifier
+ * @param {boolean} isUnlocked If context limits are unlocked
+ * @returns {number} Maximum context size in tokens
+ */
+function getZaiMaxContext(model, isUnlocked) {
+    if (isUnlocked) {
+        return unlocked_max;
+    }
+
+    const contextMap = {
+        'glm-4.6': max_200k,
+        'glm-4.5': max_128k,
+        'glm-4-32b-0414-128k': max_128k,
+        'glm-4.5-air': max_128k,
+        'glm-4.5v': max_64k,
+    };
+
+    // Return context size if model found, otherwise default to 128k
+    return Object.entries(contextMap).find(([key]) => model.includes(key))?.[1] || max_128k;
+}
+
 function getMoonshotMaxContext(model, isUnlocked) {
     if (isUnlocked) {
         return unlocked_max;
@@ -4789,7 +4832,7 @@ function getElectronHubMaxContext(model, isUnlocked) {
             return modelInfo.tokens;
         }
     }
-    return max_8k;
+    return max_128k;
 }
 
 /**
@@ -4990,6 +5033,11 @@ async function onModelChange() {
             return;
         }
         oai_settings.azure_openai_model = value;
+    }
+
+    if ($(this).is('#model_zai_select')) {
+        console.log('ZAI model changed to', value);
+        oai_settings.zai_model = value;
     }
 
     if ([chat_completion_sources.MAKERSUITE, chat_completion_sources.VERTEXAI].includes(oai_settings.chat_completion_source)) {
@@ -5294,6 +5342,15 @@ async function onModelChange() {
         $('#temp_openai').attr('max', oai_max_temp).val(oai_settings.temp_openai).trigger('input');
     }
 
+    if (oai_settings.chat_completion_source == chat_completion_sources.ZAI) {
+        const maxContext = getZaiMaxContext(oai_settings.zai_model, oai_settings.max_context_unlocked);
+        $('#openai_max_context').attr('max', maxContext);
+        oai_settings.openai_max_context = Math.min(Number($('#openai_max_context').attr('max')), oai_settings.openai_max_context);
+        $('#openai_max_context').val(oai_settings.openai_max_context).trigger('input');
+        oai_settings.temp_openai = Math.min(claude_max_temp, oai_settings.temp_openai);
+        $('#temp_openai').attr('max', claude_max_temp).val(oai_settings.temp_openai).trigger('input');
+    }
+
     $('#openai_max_context_counter').attr('max', Number($('#openai_max_context').attr('max')));
 
     saveSettingsDebounced();
@@ -5595,6 +5652,18 @@ async function onConnectButtonClick(e) {
         }
     }
 
+    if (oai_settings.chat_completion_source == chat_completion_sources.ZAI) {
+        const api_key_zai = String($('#api_key_zai').val()).trim();
+
+        if (api_key_zai.length) {
+            await writeSecret(SECRET_KEYS.ZAI, api_key_zai);
+        }
+
+        if (!api_key_zai && !secret_state[SECRET_KEYS.ZAI]) {
+            console.log('No secret key saved for ZAI');
+            return;
+        }
+    }
 
     startStatusLoading();
     saveSettingsDebounced();
@@ -5671,6 +5740,9 @@ function toggleChatCompletionForms() {
     }
     else if (oai_settings.chat_completion_source == chat_completion_sources.AZURE_OPENAI) {
         $('#azure_openai_model').trigger('change');
+    }
+    else if (oai_settings.chat_completion_source == chat_completion_sources.ZAI) {
+        $('#model_zai_select').trigger('change');
     }
 
     $('[data-source]').each(function () {
@@ -5786,6 +5858,8 @@ export function isImageInliningSupported() {
         'moonshot-v1-8k-vision-preview',
         'moonshot-v1-32k-vision-preview',
         'moonshot-v1-128k-vision-preview',
+        // Z.AI (GLM)
+        'glm-4.5v',
     ];
 
     switch (oai_settings.chat_completion_source) {
@@ -5828,6 +5902,8 @@ export function isImageInliningSupported() {
             return visionSupportedModels.some(model => oai_settings.moonshot_model.includes(model));
         case chat_completion_sources.NANOGPT:
             return (Array.isArray(model_list) && model_list.find(m => m.id === oai_settings.nanogpt_model)?.capabilities?.vision);
+        case chat_completion_sources.ZAI:
+            return visionSupportedModels.some(model => oai_settings.zai_model.includes(model));
         default:
             return false;
     }
@@ -6676,6 +6752,7 @@ export function initOpenAI() {
     $('#model_moonshot_select').on('change', onModelChange);
     $('#model_fireworks_select').on('change', onModelChange);
     $('#azure_openai_model').on('change', onModelChange);
+    $('#model_zai_select').on('change', onModelChange);
     $('#settings_preset_openai').on('change', onSettingsPresetChange);
     $('#new_oai_preset').on('click', onNewPresetClick);
     $('#delete_oai_preset').on('click', onDeletePresetClick);
