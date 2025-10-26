@@ -185,6 +185,26 @@ export async function ensureThumbnailCache(directoriesList) {
 
 export const router = express.Router();
 
+function sanitizePathAllowSubdirs(input) {
+    if (typeof input !== 'string') return '';
+    // split both forward and backward slashes, remove empty segments
+    const parts = input.split(/[\\/]+/).filter(p => p.length > 0);
+    const sanitizedParts = [];
+
+    for (const part of parts) {
+        if (part === '.' || part === '..') return ''; // reject traversal
+        const s = sanitize(part);
+        // se o sanitize alterou o segmento, rejeitar para evitar entradas maliciosas
+        if (!s || s !== part) return '';
+        sanitizedParts.push(s);
+    }
+
+    const joined = sanitizedParts.join(path.sep);
+    // rejeitar caminhos absolutos por segurança
+    if (path.isAbsolute(joined)) return '';
+    return joined;
+}
+
 // Important: This route must be mounted as '/thumbnail'. It is used in the client code and saved to chat files.
 router.get('/', async function (request, response) {
     try{
@@ -193,7 +213,9 @@ router.get('/', async function (request, response) {
         }
 
         const type = request.query.type;
-        const file = sanitize(request.query.file);
+        const rawFile = request.query.file;
+        const file = sanitizePathAllowSubdirs(rawFile);
+        console.log('Sanitized File', file);
 
         if (!type || !file) {
             return response.sendStatus(400);
@@ -201,11 +223,6 @@ router.get('/', async function (request, response) {
 
         if (!(type === 'bg' || type === 'avatar' || type === 'persona')) {
             return response.sendStatus(400);
-        }
-
-        if (sanitize(file) !== file) {
-            console.error('Malicious filename prevented');
-            return response.sendStatus(403);
         }
 
         if (!thumbnailsEnabled) {

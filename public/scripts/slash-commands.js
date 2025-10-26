@@ -778,6 +778,12 @@ export function initDefaultSlashCommands() {
                 enumProvider: commonEnumProviders.characters('character'),
             }),
             SlashCommandNamedArgument.fromProps({
+                name: 'nameOverride',
+                description: t`Name override for the character`,
+                typeList: [ARGUMENT_TYPE.STRING],
+                isRequired: false,
+            }),
+            SlashCommandNamedArgument.fromProps({
                 name: 'avatar',
                 description: t`Character avatar override (Can be either avatar key or just the character name to pull the avatar from)`,
                 typeList: [ARGUMENT_TYPE.STRING],
@@ -4538,21 +4544,27 @@ export async function sendMessageAs(args, text) {
     const character = findChar({ name: name });
 
     const avatarCharacter = args.avatar ? findChar({ name: args.avatar }) : character;
+    let avatarOverride;
+
     if (args.avatar && !avatarCharacter) {
-        toastr.warning(t`Character for avatar ${args.avatar} not found`);
-        return '';
+        if (args.avatar.includes('temporary'))  {
+            avatarOverride = getThumbnailUrl('avatar', args.avatar);
+        } else {
+            toastr.warning(t`Character for avatar ${args.avatar} not found`);
+            return '';
+        }
     }
 
-    const { name: avatarCharName, force_avatar, original_avatar } = getNameAndAvatarForMessage(avatarCharacter, name);
+    const { name: avatarCharName, force_avatar, original_avatar } = !avatarOverride ? getNameAndAvatarForMessage(avatarCharacter, name) : {};
 
     const message = {
-        name: character?.name || name || avatarCharName,
+        name: args.nameOverride || character?.name || name || avatarCharName,
         is_user: false,
         is_system: isSystem,
         send_date: getMessageTimeStamp(),
         mes: substituteParams(mesText),
-        force_avatar: force_avatar,
-        original_avatar: original_avatar,
+        force_avatar: avatarOverride || force_avatar,
+        original_avatar: avatarOverride || original_avatar,
         extra: {
             bias: bias.trim().length ? bias : null,
             gen_id: Date.now(),
