@@ -4576,7 +4576,7 @@ export async function sendMessageAs(args, text) {
 
     message.swipe_id = 0;
     message.swipes = [message.mes];
-    message.swipes_info = [{
+    message.swipe_info = [{
         send_date: message.send_date,
         gen_started: null,
         gen_finished: null,
