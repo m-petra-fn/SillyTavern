@@ -215,7 +215,6 @@ router.get('/', async function (request, response) {
         const type = request.query.type;
         const rawFile = request.query.file;
         const file = sanitizePathAllowSubdirs(rawFile);
-        console.log('Sanitized File', file);
 
         if (!type || !file) {
             return response.sendStatus(400);
