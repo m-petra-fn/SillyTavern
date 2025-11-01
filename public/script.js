@@ -2189,8 +2189,62 @@ export function addOneMessage(mes, { type = 'normal', insertAfter = null, scroll
         scrollChatToBottom();
     }
 
+    if (mes.secondImage) {
+        applySecondImageToMessageDivs(mes, newMessage);
+    }
+
     applyCharacterTagsToMessageDivs({ mesIds: newMessageId });
     updateEditArrowClasses();
+}
+
+async function applySecondImageToMessageDivs(mes, newMessage) {
+    console.log('Applying second image to message divs if applicable.', mes, newMessage);
+
+    // <div class="mesAvatarWrapper">
+    //                 <div class="avatar">
+    //                     <img src="/thumbnail?type=avatar&amp;file=temporary%2Faaho-wolf.webp">
+    //                 </div>
+    //                 <div class="mesIDDisplay">#11</div>
+    //                 <div class="mes_timer"></div>
+    //                 <div class="tokenCounterDisplay"></div>
+    //                 <div class="secondImageWrapper" style="display: unset;">
+    //                     <div class="secondAvatarDiv">
+    //                         <img src="/thumbnail?type=avatar&amp;file=temporary%2Faaho-tla.webp" class="secondAvatarImg">
+    //                     </div>
+    //                 </div>
+    //             </div>
+
+    // <div class="secondImageWrapper" style="display: none;">
+    //                     <div class="secondAvatarDiv">
+    //                         <img src="" class="secondAvatarImg">
+    //                     </div>
+    //                 </div>
+
+    const mesAvatarWrapper = $(newMessage).find('.mesAvatarWrapper');
+    const originalAvatarDiv = $(mesAvatarWrapper).find('.avatar div');
+    const originalAvatarImg = $(originalAvatarDiv).find('img');
+    const wrapper = $(newMessage).find('.secondImageWrapper');
+    const secondAvatarDiv = $(newMessage).find('.secondAvatarDiv');
+    const secondAvatarImg = $(newMessage).find('.secondAvatarImg');
+
+    const secondImageUrl = getThumbnailUrl('avatar', mes.secondImage);
+
+    //unset display none to show the wrapper
+
+    console.log('Second image URL:', secondImageUrl);
+    // Set the image source
+    secondAvatarImg.attr('src', secondImageUrl);
+
+    wrapper.css('display', 'unset');
+
+    // log all the elements for debugging
+    console.log('mesAvatarWrapper:', mesAvatarWrapper);
+    console.log('originalAvatarDiv:', originalAvatarDiv);
+    console.log('originalAvatarImg:', originalAvatarImg);
+    console.log('secondImageWrapper:', wrapper);
+    console.log('secondAvatarDiv:', secondAvatarDiv);
+    console.log('secondAvatarImg:', secondAvatarImg);
+
 }
 
 /**

@@ -790,6 +790,11 @@ export function initDefaultSlashCommands() {
                 enumProvider: commonEnumProviders.characters('character'),
             }),
             SlashCommandNamedArgument.fromProps({
+                name: 'secondImage',
+                description: t`Path to a second image`,
+                typeList: [ARGUMENT_TYPE.STRING],
+            }),
+            SlashCommandNamedArgument.fromProps({
                 name: 'compact',
                 description: t`Use compact layout`,
                 typeList: [ARGUMENT_TYPE.BOOLEAN],
@@ -4572,6 +4577,7 @@ export async function sendMessageAs(args, text) {
             api: 'manual',
             model: 'slash command',
         },
+        secondImage: args.secondImage
     };
 
     message.swipe_id = 0;
