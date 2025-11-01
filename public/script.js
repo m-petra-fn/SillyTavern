@@ -244,7 +244,7 @@ import { getBackgrounds, initBackgrounds, loadBackgroundSettings, background_set
 import { hideLoader, showLoader } from './scripts/loader.js';
 import { BulkEditOverlay } from './scripts/BulkEditOverlay.js';
 import { initTextGenModels } from './scripts/textgen-models.js';
-import { appendFileContent, hasPendingFileAttachment, populateFileAttachment, decodeStyleTags, encodeStyleTags, isExternalMediaAllowed, preserveNeutralChat, restoreNeutralChat, formatCreatorNotes, initChatUtilities, addDOMPurifyHooks } from './scripts/chats.js';
+import { appendFileContent, hasPendingFileAttachment, populateFileAttachment, decodeStyleTags, encodeStyleTags, isExternalMediaAllowed, preserveNeutralChat, restoreNeutralChat, formatCreatorNotes, initChatUtilities, addDOMPurifyHooks, applyImageToDivs } from './scripts/chats.js';
 import { getPresetManager, initPresetManager } from './scripts/preset-manager.js';
 import { evaluateMacros, getLastMessageId, initMacros } from './scripts/macros.js';
 import { currentUser, setUserControls } from './scripts/user.js';
@@ -2187,6 +2187,10 @@ export function addOneMessage(mes, { type = 'normal', insertAfter = null, scroll
     // Don't scroll if not inserting last
     if (!insertAfter && !insertBefore && scroll) {
         scrollChatToBottom();
+    }
+
+    if (mes.secondImage) {
+        applyImageToDivs(mes, newMessage);
     }
 
     applyCharacterTagsToMessageDivs({ mesIds: newMessageId });
