@@ -2200,32 +2200,13 @@ export function addOneMessage(mes, { type = 'normal', insertAfter = null, scroll
 async function applySecondImageToMessageDivs(mes, newMessage) {
     console.log('Applying second image to message divs if applicable.', mes, newMessage);
 
-    // <div class="mesAvatarWrapper">
-    //                 <div class="avatar">
-    //                     <img src="/thumbnail?type=avatar&amp;file=temporary%2Faaho-wolf.webp">
-    //                 </div>
-    //                 <div class="mesIDDisplay">#11</div>
-    //                 <div class="mes_timer"></div>
-    //                 <div class="tokenCounterDisplay"></div>
-    //                 <div class="secondImageWrapper" style="display: unset;">
-    //                     <div class="secondAvatarDiv">
-    //                         <img src="/thumbnail?type=avatar&amp;file=temporary%2Faaho-tla.webp" class="secondAvatarImg">
-    //                     </div>
-    //                 </div>
-    //             </div>
-
-    // <div class="secondImageWrapper" style="display: none;">
-    //                     <div class="secondAvatarDiv">
-    //                         <img src="" class="secondAvatarImg">
-    //                     </div>
-    //                 </div>
-
     const mesAvatarWrapper = $(newMessage).find('.mesAvatarWrapper');
     const originalAvatarDiv = $(mesAvatarWrapper).find('.avatar div');
     const originalAvatarImg = $(originalAvatarDiv).find('img');
     const wrapper = $(newMessage).find('.secondImageWrapper');
     const secondAvatarDiv = $(newMessage).find('.secondAvatarDiv');
     const secondAvatarImg = $(newMessage).find('.secondAvatarImg');
+    const hr = $(mesAvatarWrapper).find('.imageDivider');
 
     const secondImageUrl = getThumbnailUrl('avatar', mes.secondImage);
 
@@ -2236,6 +2217,7 @@ async function applySecondImageToMessageDivs(mes, newMessage) {
     secondAvatarImg.attr('src', secondImageUrl);
 
     wrapper.css('display', 'unset');
+    hr.css('display', 'block');
 
     // log all the elements for debugging
     console.log('mesAvatarWrapper:', mesAvatarWrapper);
