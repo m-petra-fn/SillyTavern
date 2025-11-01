@@ -595,7 +595,7 @@ export async function applyImageToDivs(mes, newMessage, isSecondImage = true) {
 
     const mesAvatarWrapper = $(newMessage).find('.mesAvatarWrapper');
     const originalAvatarImg = $(newMessage).find('.avatarImage');
-    const wrapper = $(newMessage).find('.secondImageWrapper');
+    const secondImageWrapper = $(newMessage).find('.secondImageWrapper');
     const secondAvatarImg = $(newMessage).find('.secondAvatarImg');
     const hr = $(mesAvatarWrapper).find('.imageDivider');
 
@@ -607,12 +607,11 @@ export async function applyImageToDivs(mes, newMessage, isSecondImage = true) {
     // Set the image source
     if (isSecondImage) {
         secondAvatarImg.attr('src', secondImageUrl);
+        secondImageWrapper.css('display', 'unset');
+        hr.css('display', 'block');
     } else {
         originalAvatarImg.attr('src', mes.force_avatar);
     }
-
-    wrapper.css('display', 'unset');
-    hr.css('display', 'block');
 
 }
 
