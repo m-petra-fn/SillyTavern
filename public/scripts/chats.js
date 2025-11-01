@@ -594,10 +594,8 @@ export async function applyImageToDivs(mes, newMessage, isSecondImage = true) {
     console.log('Applying second image to message divs if applicable.', mes, newMessage);
 
     const mesAvatarWrapper = $(newMessage).find('.mesAvatarWrapper');
-    const originalAvatarDiv = $(mesAvatarWrapper).find('.avatar div');
     const originalAvatarImg = $(newMessage).find('.avatarImage');
     const wrapper = $(newMessage).find('.secondImageWrapper');
-    const secondAvatarDiv = $(newMessage).find('.secondAvatarDiv');
     const secondAvatarImg = $(newMessage).find('.secondAvatarImg');
     const hr = $(mesAvatarWrapper).find('.imageDivider');
 
@@ -616,14 +614,6 @@ export async function applyImageToDivs(mes, newMessage, isSecondImage = true) {
     wrapper.css('display', 'unset');
     hr.css('display', 'block');
 
-    // log all the elements for debugging
-    // console.log('mesAvatarWrapper:', mesAvatarWrapper);
-    // console.log('originalAvatarDiv:', originalAvatarDiv);
-    // console.log('originalAvatarImg:', originalAvatarImg);
-    // console.log('secondImageWrapper:', wrapper);
-    // console.log('secondAvatarDiv:', secondAvatarDiv);
-    // console.log('secondAvatarImg:', secondAvatarImg);
-
 }
 
 /**
@@ -640,8 +630,6 @@ export async function uploadSecondImage(message, imageSource, inputId = 'file_fo
         if (!(fileInput instanceof HTMLInputElement)) return;
         const file = fileInput.files[0];
         if (!file) return;
-
-        // how to change image to square format?
 
         const fileBase64 = await getBase64Async(file);
         const squareImage = await createThumbnail(fileBase64, null, null, 'image/webp', true);
