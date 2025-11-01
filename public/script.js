@@ -244,7 +244,7 @@ import { getBackgrounds, initBackgrounds, loadBackgroundSettings, background_set
 import { hideLoader, showLoader } from './scripts/loader.js';
 import { BulkEditOverlay } from './scripts/BulkEditOverlay.js';
 import { initTextGenModels } from './scripts/textgen-models.js';
-import { appendFileContent, hasPendingFileAttachment, populateFileAttachment, decodeStyleTags, encodeStyleTags, isExternalMediaAllowed, preserveNeutralChat, restoreNeutralChat, formatCreatorNotes, initChatUtilities, addDOMPurifyHooks } from './scripts/chats.js';
+import { appendFileContent, hasPendingFileAttachment, populateFileAttachment, decodeStyleTags, encodeStyleTags, isExternalMediaAllowed, preserveNeutralChat, restoreNeutralChat, formatCreatorNotes, initChatUtilities, addDOMPurifyHooks, applyImageToDivs } from './scripts/chats.js';
 import { getPresetManager, initPresetManager } from './scripts/preset-manager.js';
 import { evaluateMacros, getLastMessageId, initMacros } from './scripts/macros.js';
 import { currentUser, setUserControls } from './scripts/user.js';
@@ -2190,43 +2190,11 @@ export function addOneMessage(mes, { type = 'normal', insertAfter = null, scroll
     }
 
     if (mes.secondImage) {
-        applySecondImageToMessageDivs(mes, newMessage);
+        applyImageToDivs(mes, newMessage);
     }
 
     applyCharacterTagsToMessageDivs({ mesIds: newMessageId });
     updateEditArrowClasses();
-}
-
-async function applySecondImageToMessageDivs(mes, newMessage) {
-    console.log('Applying second image to message divs if applicable.', mes, newMessage);
-
-    const mesAvatarWrapper = $(newMessage).find('.mesAvatarWrapper');
-    const originalAvatarDiv = $(mesAvatarWrapper).find('.avatar div');
-    const originalAvatarImg = $(originalAvatarDiv).find('img');
-    const wrapper = $(newMessage).find('.secondImageWrapper');
-    const secondAvatarDiv = $(newMessage).find('.secondAvatarDiv');
-    const secondAvatarImg = $(newMessage).find('.secondAvatarImg');
-    const hr = $(mesAvatarWrapper).find('.imageDivider');
-
-    const secondImageUrl = getThumbnailUrl('avatar', mes.secondImage);
-
-    //unset display none to show the wrapper
-
-    console.log('Second image URL:', secondImageUrl);
-    // Set the image source
-    secondAvatarImg.attr('src', secondImageUrl);
-
-    wrapper.css('display', 'unset');
-    hr.css('display', 'block');
-
-    // log all the elements for debugging
-    console.log('mesAvatarWrapper:', mesAvatarWrapper);
-    console.log('originalAvatarDiv:', originalAvatarDiv);
-    console.log('originalAvatarImg:', originalAvatarImg);
-    console.log('secondImageWrapper:', wrapper);
-    console.log('secondAvatarDiv:', secondAvatarDiv);
-    console.log('secondAvatarImg:', secondAvatarImg);
-
 }
 
 /**

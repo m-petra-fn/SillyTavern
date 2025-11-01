@@ -790,11 +790,6 @@ export function initDefaultSlashCommands() {
                 enumProvider: commonEnumProviders.characters('character'),
             }),
             SlashCommandNamedArgument.fromProps({
-                name: 'secondImage',
-                description: t`Path to a second image`,
-                typeList: [ARGUMENT_TYPE.STRING],
-            }),
-            SlashCommandNamedArgument.fromProps({
                 name: 'compact',
                 description: t`Use compact layout`,
                 typeList: [ARGUMENT_TYPE.BOOLEAN],
@@ -4549,18 +4544,13 @@ export async function sendMessageAs(args, text) {
     const character = findChar({ name: name });
 
     const avatarCharacter = args.avatar ? findChar({ name: args.avatar }) : character;
-    let avatarOverride;
 
     if (args.avatar && !avatarCharacter) {
-        if (args.avatar.includes('temporary'))  {
-            avatarOverride = getThumbnailUrl('avatar', args.avatar);
-        } else {
-            toastr.warning(t`Character for avatar ${args.avatar} not found`);
-            return '';
-        }
+        toastr.warning(t`Character for avatar ${args.avatar} not found`);
+        return '';
     }
 
-    const { name: avatarCharName, force_avatar, original_avatar } = !avatarOverride ? getNameAndAvatarForMessage(avatarCharacter, name) : {};
+    const { name: avatarCharName, force_avatar, original_avatar } = getNameAndAvatarForMessage(avatarCharacter, name);
 
     const message = {
         name: args.nameOverride || character?.name || name || avatarCharName,
@@ -4568,8 +4558,8 @@ export async function sendMessageAs(args, text) {
         is_system: isSystem,
         send_date: getMessageTimeStamp(),
         mes: substituteParams(mesText),
-        force_avatar: avatarOverride || force_avatar,
-        original_avatar: avatarOverride || original_avatar,
+        force_avatar: force_avatar,
+        original_avatar: original_avatar,
         extra: {
             bias: bias.trim().length ? bias : null,
             gen_id: Date.now(),
@@ -4577,7 +4567,6 @@ export async function sendMessageAs(args, text) {
             api: 'manual',
             model: 'slash command',
         },
-        secondImage: args.secondImage
     };
 
     message.swipe_id = 0;

@@ -43,6 +43,8 @@ import {
     getFileText,
     getFileExtension,
     convertTextToBase64,
+    getSanitizedFilename,
+    createThumbnail,
 } from './utils.js';
 import { extension_settings, renderExtensionTemplateAsync, saveMetadataDebounced } from './extensions.js';
 import { POPUP_RESULT, POPUP_TYPE, Popup, callGenericPopup } from './popup.js';
@@ -444,6 +446,222 @@ function embedMessageFile(messageId, messageBlock) {
         await eventSource.emit(event_types.MESSAGE_FILE_EMBEDDED, messageId);
         appendMediaToMessage(message, messageBlock);
         await saveChatConditional();
+    }
+}
+
+/**
+ * Override avatar of the message.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @returns {Promise<void>}
+ */
+async function overrideMessageAvatar(messageId, messageBlock) {
+    const message = chat[messageId];
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
+    }
+
+    $('#embed_file_input')
+        .off('change')
+        .on('change', parseAndUploadEmbed)
+        .trigger('click');
+
+    async function parseAndUploadEmbed(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const isValid = await validateFile(file);
+
+        if (!isValid) {
+            $('#file_form').trigger('reset');
+            return;
+        }
+
+        console.log('Uploading second image for message', message, file);
+        const sanitizedFileName = await getSanitizedFilename(file.name);
+        console.log('Sanitized file name:', sanitizedFileName);
+        message.force_avatar = sanitizedFileName;
+
+        await uploadSecondImage(message, 'force_avatar', 'embed_file_input');
+        await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
+        await saveChatConditional();
+
+        applyImageToDivs(message, messageBlock, false);
+    }
+}
+
+/**
+ * Changes title of the message.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @returns {Promise<void>}
+ */
+async function changeMessageTitle(messageId, messageBlock) {
+    const message = chat[messageId];
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
+    }
+
+    const popupResult = await Popup.show.input(
+            t`Change message title.`,
+            t`<p>Input the text of the title for the message.</p>`,
+            message.name || '',
+            { okButton: 'OK', cancelButton: true },
+        );
+
+    if (popupResult && popupResult.trim() !== message.name) {
+        message.name = popupResult.trim();
+        messageBlock.find('.ch_name .name_text').text(message.name);
+        updateChat();
+    }
+
+    async function updateChat(e) {
+        await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
+        await saveChatConditional();
+    }
+}
+
+function removeSecondImage(messageId, messageBlock) {
+    const message = chat[messageId];
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
+    }
+
+    delete message.secondImage;
+
+    // Hide the second image wrapper
+    $(messageBlock).find('.secondImageWrapper').css('display', 'none');
+    $(messageBlock).find('.secondAvatarImg').attr('src', '');
+    $(messageBlock).find('.imageDivider').css('display', 'none');
+    updateChat();
+
+    async function updateChat(e) {
+        await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
+        await saveChatConditional();
+    }
+}
+
+/**
+ * Adds or edits second image of the message.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @returns {Promise<void>}
+ */
+function addSecondImage(messageId, messageBlock) {
+    const message = chat[messageId];
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
+    }
+
+    $('#embed_file_input')
+        .off('change')
+        .on('change', parseAndUploadEmbed)
+        .trigger('click');
+
+    async function parseAndUploadEmbed(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const isValid = await validateFile(file);
+
+        if (!isValid) {
+            $('#file_form').trigger('reset');
+            return;
+        }
+
+        console.log('Uploading second image for message', message, file);
+        const sanitizedFileName = await getSanitizedFilename(file.name);
+        console.log('Sanitized file name:', sanitizedFileName);
+        message.secondImage = sanitizedFileName;
+
+        await uploadSecondImage(message, 'secondImage', 'embed_file_input');
+        await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
+        await saveChatConditional();
+
+        applyImageToDivs(message, messageBlock);
+    }
+}
+
+export async function applyImageToDivs(mes, newMessage, isSecondImage = true) {
+    console.log('Applying second image to message divs if applicable.', mes, newMessage);
+
+    const mesAvatarWrapper = $(newMessage).find('.mesAvatarWrapper');
+    const originalAvatarDiv = $(mesAvatarWrapper).find('.avatar div');
+    const originalAvatarImg = $(newMessage).find('.avatarImage');
+    const wrapper = $(newMessage).find('.secondImageWrapper');
+    const secondAvatarDiv = $(newMessage).find('.secondAvatarDiv');
+    const secondAvatarImg = $(newMessage).find('.secondAvatarImg');
+    const hr = $(mesAvatarWrapper).find('.imageDivider');
+
+    const secondImageUrl = mes.secondImage;
+
+    //unset display none to show the wrapper
+
+    console.log('Second image URL:', secondImageUrl);
+    // Set the image source
+    if (isSecondImage) {
+        secondAvatarImg.attr('src', secondImageUrl);
+    } else {
+        originalAvatarImg.attr('src', mes.force_avatar);
+    }
+
+    wrapper.css('display', 'unset');
+    hr.css('display', 'block');
+
+    // log all the elements for debugging
+    // console.log('mesAvatarWrapper:', mesAvatarWrapper);
+    // console.log('originalAvatarDiv:', originalAvatarDiv);
+    // console.log('originalAvatarImg:', originalAvatarImg);
+    // console.log('secondImageWrapper:', wrapper);
+    // console.log('secondAvatarDiv:', secondAvatarDiv);
+    // console.log('secondAvatarImg:', secondAvatarImg);
+
+}
+
+/**
+ * Upload second image.
+ * @param {object} message Message object
+ * @param {string} imageSource Message image source property
+ * @returns {Promise<void>} A promise that resolves when file is uploaded.
+ */
+export async function uploadSecondImage(message, imageSource, inputId = 'file_form_input') {
+    try {
+        if (!message) return;
+        if (!message.extra) message.extra = {};
+        const fileInput = document.getElementById(inputId);
+        if (!(fileInput instanceof HTMLInputElement)) return;
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        // how to change image to square format?
+
+        const fileBase64 = await getBase64Async(file);
+        const squareImage = await createThumbnail(fileBase64, null, null, 'image/webp', true);
+        let base64Data = squareImage.split(',')[1];
+
+        // If file is image
+        if (file.type.startsWith('image/')) {
+            const imageUrl = await saveBase64AsFile(base64Data, 'messageImages', message[imageSource], 'webp');
+            message[imageSource] = imageUrl;
+            console.log('Second image uploaded:', imageUrl);
+        } else {
+            toastr.error(t`Second image must be an image file.`);
+            console.error('Second image must be an image file.');
+        }
+
+    } catch (error) {
+        console.error('Could not upload file', error);
+        toastr.error(t`Either the file is corrupted or its format is not supported.`, t`Could not upload the file`);
+    } finally {
+        $('#file_form').trigger('reset');
     }
 }
 
@@ -1946,6 +2164,32 @@ export function initChatUtilities() {
         const messageBlock = $(this).closest('.mes');
         const messageId = Number(messageBlock.attr('mesid'));
         embedMessageFile(messageId, messageBlock);
+    });
+
+    $(document).on('click', '.mes_second_image', function () {
+        const messageBlock = $(this).closest('.mes');
+        const messageId = Number(messageBlock.attr('mesid'));
+        addSecondImage(messageId, messageBlock);
+    });
+
+    $(document).on('click', '.mes_change_title', function () {
+        const messageBlock = $(this).closest('.mes');
+        const messageId = Number(messageBlock.attr('mesid'));
+        changeMessageTitle(messageId, messageBlock);
+    });
+
+    $(document).on('click', '.mes_override_avatar', function () {
+        const messageBlock = $(this).closest('.mes');
+        const messageId = Number(messageBlock.attr('mesid'));
+        overrideMessageAvatar(messageId, messageBlock);
+    });
+
+    $(document).on('click', '.secondAvatarImg', function () {
+        if(confirm('Remove second image?')) {
+            const messageBlock = $(this).closest('.mes');
+            const messageId = Number(messageBlock.attr('mesid'));
+            removeSecondImage(messageId, messageBlock);
+        }
     });
 
     $(document).on('click', '.editor_maximize', async function (e) {

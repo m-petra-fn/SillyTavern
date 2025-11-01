@@ -1602,7 +1602,7 @@ export async function convertImageFile(inputFile, type = 'image/png') {
  * @param {string} [type='image/jpeg'] The type of the thumbnail.
  * @returns {Promise<string>} A promise that resolves to the thumbnail data URL.
  */
-export function createThumbnail(dataUrl, maxWidth = null, maxHeight = null, type = 'image/jpeg') {
+export function createThumbnail(dataUrl, maxWidth = null, maxHeight = null, type = 'image/jpeg', forceRatio = false) {
     // Someone might pass in a base64 encoded string without the data URL prefix
     if (!dataUrl.includes('data:')) {
         dataUrl = `data:image/jpeg;base64,${dataUrl}`;
@@ -1616,7 +1616,7 @@ export function createThumbnail(dataUrl, maxWidth = null, maxHeight = null, type
             const ctx = canvas.getContext('2d');
 
             // Calculate the thumbnail dimensions while maintaining the aspect ratio
-            const aspectRatio = img.width / img.height;
+            const aspectRatio = forceRatio ? 1 : img.width / img.height;
             let thumbnailWidth = maxWidth;
             let thumbnailHeight = maxHeight;
 
@@ -1640,6 +1640,28 @@ export function createThumbnail(dataUrl, maxWidth = null, maxHeight = null, type
                 } else {
                     thumbnailWidth = maxHeight * aspectRatio;
                 }
+            }
+
+            // if forceRatio is true, crop the image to a square
+            if (forceRatio) {
+                const size = Math.min(img.width, img.height);
+                const sx = (img.width - size) / 2;
+                const sy = (img.height - size) / 2;
+                thumbnailWidth = maxWidth;
+                thumbnailHeight = maxHeight;
+
+                // Set the canvas dimensions and draw the cropped image
+                canvas.width = thumbnailWidth;
+                canvas.height = thumbnailHeight;
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, thumbnailWidth, thumbnailHeight);
+                ctx.drawImage(img, sx, sy, size, size, 0, 0, thumbnailWidth, thumbnailHeight);
+
+                const thumbnailDataUrl = canvas.toDataURL(type);
+                resolve(thumbnailDataUrl);
+                return;
             }
 
             // Set the canvas dimensions and draw the resized image
