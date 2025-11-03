@@ -515,48 +515,6 @@ async function overrideMessageAvatar(messageId, messageBlock) {
         .on('change', parseAndUploadEmbed)
         .trigger('click');
 
-    async function parseAndUploadEmbed(/** @type {JQuery.ChangeEvent} */ e) {
-        if (!(e.target instanceof HTMLInputElement)) return;
-        if (!e.target.files.length) return;
-
-        for (const file of e.target.files) {
-            const isValid = await validateFile(file);
-
-            if (!isValid) {
-                toastr.warning(t`File ${file.name} is not supported.`);
-                $('#file_form').trigger('reset');
-                return;
-            }
-        }
-
-        await populateFileAttachment(message, 'embed_file_input');
-        await eventSource.emit(event_types.MESSAGE_FILE_EMBEDDED, messageId);
-        appendMediaToMessage(message, messageBlock, SCROLL_BEHAVIOR.KEEP);
-        await saveChatConditional();
-
-        applyImageToDivs(message, messageBlock, false);
-    }
-}
-
-/**
- * Override avatar of the message.
- * @param {number} messageId
- * @param {JQuery<HTMLElement>} messageBlock
- * @returns {Promise<void>}
- */
-async function overrideMessageAvatar(messageId, messageBlock) {
-    const message = chat[messageId];
-
-    if (!message) {
-        console.warn('Failed to find message with id', messageId);
-        return;
-    }
-
-    $('#embed_file_input')
-        .off('change')
-        .on('change', parseAndUploadEmbed)
-        .trigger('click');
-
     async function parseAndUploadEmbed(e) {
         const file = e.target.files[0];
         if (!file) return;
