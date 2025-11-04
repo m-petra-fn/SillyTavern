@@ -11394,8 +11394,8 @@ jQuery(async function () {
         }
     });
 
-    $(document).on('keyup', function (e) {
-        if (e.key === 'Escape') {
+    $(document).on('keydown', function (e) {
+        if (e.key === 'Escape' && !e.originalEvent.isComposing) {
             const isEditVisible = $('#curEditTextarea').is(':visible') || $('.reasoning_edit_textarea').length > 0;
             if (isEditVisible && power_user.auto_save_msg_edits === false) {
                 closeMessageEditor('all');
