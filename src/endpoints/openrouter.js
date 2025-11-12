@@ -70,7 +70,7 @@ router.post('/models/multimodal', async (_req, res) => {
 router.post('/models/embedding', async (_req, res) => {
     try {
         // The endpoint is available without authentication
-        const response = await fetch(`${API_OPENROUTER}/models/embeddings`, {
+        const response = await fetch(`${API_OPENROUTER}/embeddings/models`, {
             method: 'GET',
             headers: {
                 'Accept': 'application/json',
