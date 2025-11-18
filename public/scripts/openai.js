@@ -2500,7 +2500,7 @@ async function sendOpenAIRequest(type, messages, signal, { jsonSchema = null } =
         generate_data['seed'] = oai_settings.seed;
     }
 
-    if ((isOAI && /^(o1|o3|o4)/.test(oai_settings.openai_model)) || (isAzureOpenAI && /^(o1|o3|o4)/.test(oai_settings.azure_openai_model))) {
+    if ((isOAI && /^(o1|o3|o4)/.test(model)) || (isAzureOpenAI && /^(o1|o3|o4)/.test(model))) {
         generate_data.max_completion_tokens = generate_data.max_tokens;
         delete generate_data.max_tokens;
         delete generate_data.logprobs;
@@ -2511,7 +2511,7 @@ async function sendOpenAIRequest(type, messages, signal, { jsonSchema = null } =
         delete generate_data.top_p;
         delete generate_data.frequency_penalty;
         delete generate_data.presence_penalty;
-        if (oai_settings.openai_model.startsWith('o1')) {
+        if (model.startsWith('o1')) {
             generate_data.messages.forEach((msg) => {
                 if (msg.role === 'system') {
                     msg.role = 'user';
@@ -2523,14 +2523,19 @@ async function sendOpenAIRequest(type, messages, signal, { jsonSchema = null } =
         }
     }
 
-    if ((isOAI && /^gpt-5/.test(oai_settings.openai_model)) || (isAzureOpenAI && /^gpt-5/.test(oai_settings.azure_openai_model))) {
+    if ((isOAI && /^gpt-5/.test(model)) || (isAzureOpenAI && /^gpt-5/.test(model))) {
         generate_data.max_completion_tokens = generate_data.max_tokens;
         delete generate_data.max_tokens;
         delete generate_data.logprobs;
         delete generate_data.top_logprobs;
-        if (/chat-latest/.test(oai_settings.openai_model)) {
+        if (/gpt-5-chat-latest/.test(model)) {
             delete generate_data.tools;
             delete generate_data.tool_choice;
+        } else if (/gpt-5.1/.test(model) && !/chat-latest/.test(model)) {
+            delete generate_data.frequency_penalty;
+            delete generate_data.presence_penalty;
+            delete generate_data.logit_bias;
+            delete generate_data.stop;
         } else {
             delete generate_data.temperature;
             delete generate_data.top_p;
