@@ -359,15 +359,18 @@ async function checkChatIntegrity(filePath, integritySlug) {
  * @property {number} [chat_items] - The number of chat items in the file
  * @property {string} [mes] - The last message in the chat
  * @property {number} [last_mes] - The timestamp of the last message
+ * @property {object} [chat_metadata] - Additional chat metadata
  */
 
 /**
  * Reads the information from a chat file.
- * @param {string} pathToFile
- * @param {object} additionalData
+ * @param {string} pathToFile - Path to the chat file
+ * @param {object} additionalData - Additional data to include in the result
+ * @param {boolean} isGroup - Whether the chat is a group chat
+ * @param {boolean} withMetadata - Whether to read chat metadata
  * @returns {Promise<ChatInfo>}
  */
-export async function getChatInfo(pathToFile, additionalData = {}, isGroup = false) {
+export async function getChatInfo(pathToFile, additionalData = {}, isGroup = false, withMetadata = false) {
     return new Promise(async (res) => {
         const stats = await fs.promises.stat(pathToFile);
         const fileSizeInKB = `${(stats.size / 1024).toFixed(2)}kb`;
@@ -401,6 +404,12 @@ export async function getChatInfo(pathToFile, additionalData = {}, isGroup = fal
         let lastLine;
         let itemCounter = 0;
         rl.on('line', (line) => {
+            if (withMetadata && itemCounter === 0) {
+                const jsonData = tryParse(line);
+                if (jsonData && _.isObject(jsonData.chat_metadata)) {
+                    chatData.chat_metadata = jsonData.chat_metadata;
+                }
+            }
             itemCounter++;
             lastLine = line;
         });
@@ -409,7 +418,7 @@ export async function getChatInfo(pathToFile, additionalData = {}, isGroup = fal
 
             if (lastLine) {
                 const jsonData = tryParse(lastLine);
-                if (jsonData && (jsonData.name || jsonData.character_name)) {
+                if (jsonData && (jsonData.name || jsonData.character_name || jsonData.chat_metadata)) {
                     chatData.chat_items = isGroup ? itemCounter : (itemCounter - 1);
                     chatData.mes = jsonData['mes'] || '[The message is empty]';
                     chatData.last_mes = jsonData['send_date'] || stats.mtimeMs;
