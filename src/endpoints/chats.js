@@ -354,7 +354,8 @@ async function checkChatIntegrity(filePath, integritySlug) {
 
 /**
  * @typedef {Object} ChatInfo
- * @property {string} [file_name] - The name of the chat file
+ * @property {string} [file_id] - The name of the chat file (without extension)
+ * @property {string} [file_name] - The name of the chat file (with extension)
  * @property {string} [file_size] - The size of the chat file
  * @property {number} [chat_items] - The number of chat items in the file
  * @property {string} [mes] - The last message in the chat
@@ -372,11 +373,13 @@ async function checkChatIntegrity(filePath, integritySlug) {
  */
 export async function getChatInfo(pathToFile, additionalData = {}, isGroup = false, withMetadata = false) {
     return new Promise(async (res) => {
+        const parsedPath = path.parse(pathToFile);
         const stats = await fs.promises.stat(pathToFile);
         const fileSizeInKB = `${(stats.size / 1024).toFixed(2)}kb`;
 
         const chatData = {
-            file_name: path.parse(pathToFile).base,
+            file_id: parsedPath.name,
+            file_name: parsedPath.base,
             file_size: fileSizeInKB,
             chat_items: 0,
             mes: '[The chat is empty]',
@@ -960,9 +963,10 @@ router.post('/recent', async function (request, response) {
         const max = parseInt(request.body.max ?? Number.MAX_SAFE_INTEGER);
         const recentChats = allChatFiles.sort((a, b) => b.mtime - a.mtime).slice(0, max);
         const jsonFilesPromise = recentChats.map((file) => {
+            const withMetadata = Boolean(request.body.metadata);
             return file.groupId
-                ? getChatInfo(file.filePath, { group: file.groupId }, true)
-                : getChatInfo(file.filePath, { avatar: file.pngFile }, false);
+                ? getChatInfo(file.filePath, { group: file.groupId }, true, withMetadata)
+                : getChatInfo(file.filePath, { avatar: file.pngFile }, false, withMetadata);
         });
 
         const chatData = (await Promise.allSettled(jsonFilesPromise)).filter(x => x.status === 'fulfilled').map(x => x.value);
