@@ -2907,10 +2907,16 @@ async function generatePrompt(quietPrompt) {
  */
 async function sendGenerationRequest(generationType, prompt, additionalNegativePrefix, characterName, callback, initiator, signal) {
     const noCharPrefix = [generationMode.FREE, generationMode.BACKGROUND, generationMode.USER, generationMode.USER_MULTIMODAL, generationMode.FREE_EXTENDED];
-    const prefix = noCharPrefix.includes(generationType)
+    const isCharChat = this_chid !== undefined && !selected_group;
+    const ignoreNoCharForSwipe = initiator === initiators.swipe && isCharChat;
+
+    const skipCharPrefix = !ignoreNoCharForSwipe && noCharPrefix.includes(generationType);
+
+    const prefix = skipCharPrefix
         ? extension_settings.sd.prompt_prefix
         : combinePrefixes(extension_settings.sd.prompt_prefix, getCharacterPrefix());
-    const negativePrefix = noCharPrefix.includes(generationType)
+
+    const negativePrefix = skipCharPrefix
         ? extension_settings.sd.negative_prompt
         : combinePrefixes(extension_settings.sd.negative_prompt, getCharacterNegativePrefix());
 
@@ -4370,6 +4376,10 @@ async function sdMessageButton($icon, { animate } = {}) {
 
     if (!Array.isArray(message.extra.media)) {
         message.extra.media = [];
+    }
+
+    if (!message.extra.media.length && !message.extra.media_display) {
+        message.extra.media_display = MEDIA_DISPLAY.GALLERY;
     }
 
     /** @type {MediaAttachment} */
