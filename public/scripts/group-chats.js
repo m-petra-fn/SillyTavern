@@ -2369,6 +2369,8 @@ export async function importGroupChat(formData, { refresh = true } = {}) {
                     await displayPastChats();
                 }
             }
+
+            return [data.res];
         }
 
         return data?.fileNames || [];
