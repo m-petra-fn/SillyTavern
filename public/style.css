@@ -5083,6 +5083,15 @@ a:hover {
     background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
 }
 
+/* Pass-through pointer events to the swipe buttons only */
+.mes .mes_video_container .mes_img_swipes {
+    pointer-events: none;
+}
+
+.mes .mes_video_container .mes_img_swipes :is(.mes_img_swipe_left, .mes_img_swipe_right) {
+    pointer-events: auto;
+}
+
 .mes_img_swipes .right_menu_button,
 .mes_img_controls .right_menu_button,
 .mes_video_controls .right_menu_button {
