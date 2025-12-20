@@ -39,8 +39,6 @@ import {
     setCharacterName,
     setEditedMessageId,
     is_send_press,
-    name1,
-    name2,
     resetChatState,
     setSendButtonState,
     getCharacters,
@@ -73,6 +71,7 @@ import {
     isChatSaving,
     setExternalAbortController,
     baseChatReplace,
+    createLazyFields,
     depth_prompt_depth_default,
     loadItemizedPrompts,
     animation_duration,
@@ -459,7 +458,7 @@ export function getGroupDepthPrompts(groupId, characterId) {
             continue;
         }
 
-        const depthPromptText = baseChatReplace(character.data?.extensions?.depth_prompt?.prompt?.trim(), name1, character.name) || '';
+        const depthPromptText = baseChatReplace(character.data?.extensions?.depth_prompt?.prompt?.trim(), null, character.name) || '';
         const depthPromptDepth = character.data?.extensions?.depth_prompt?.depth ?? depth_prompt_depth_default;
         const depthPromptRole = character.data?.extensions?.depth_prompt?.role ?? depth_prompt_role_default;
 
@@ -478,29 +477,48 @@ export function getGroupDepthPrompts(groupId, characterId) {
  * @returns {{description: string, personality: string, scenario: string, mesExamples: string, activeCharContent: string, combinedCharacters: string}} Group character cards combined
  */
 export function getGroupCharacterCards(groupId, characterId) {
+    const lazy = getGroupCharacterCardsLazy(groupId, characterId);
+    if (!lazy) return null;
+
+    // Resolve all lazy fields into a plain object
+    return {
+        description: lazy.description,
+        personality: lazy.personality,
+        scenario: lazy.scenario,
+        mesExamples: lazy.mesExamples,
+        activeCharContent: lazy.activeCharContent,
+        combinedCharacters: lazy.combinedCharacters,
+    };
+}
+
+/**
+ * Returns group character cards with lazy evaluation.
+ * Each field is only processed when first accessed.
+ * @param {string} groupId Group ID
+ * @param {number} characterId Current Character ID
+ * @returns {{description: string, personality: string, scenario: string, mesExamples: string, activeCharContent: string, combinedCharacters: string}} Group character cards with lazy getters
+ */
+export function getGroupCharacterCardsLazy(groupId, characterId) {
     const group = groups.find(x => x.id === groupId);
 
+    // If no group cards should be generated, return null so caller knows to fall back
     if (!group || !group?.generation_mode || !Array.isArray(group.members) || !group.members.length) {
         return null;
     }
 
     /**
-     * Runs the macro engine on a text, with custom <FIELDNAME> replace
+     * Runs baseChatReplace on a text, with custom <FIELDNAME> replace
      * @param {string} value Value to replace
      * @param {string} fieldName Name of the field
      * @param {string} characterName Name of the character
      * @param {boolean} trim Whether to trim the value
      * @returns {string} Replaced text
-     * */
-    function customBaseChatReplace(value, fieldName, characterName, trim) {
-        if (!value) {
-            return '';
-        }
-
-        // We should do the custom field name replacement first, and then run it through the normal macro engine with provided names
+     */
+    function customTransform(value, fieldName, characterName, trim) {
+        if (!value) return '';
         value = value.replace(/<FIELDNAME>/gi, fieldName);
         value = trim ? value.trim() : value;
-        return baseChatReplace(value, name1, characterName);
+        return baseChatReplace(value, null, characterName);
     }
 
     /**
@@ -510,120 +528,93 @@ export function getGroupCharacterCards(groupId, characterId) {
      * @param {string} fieldName Name of the field
      * @param {function(string): string} [preprocess] Preprocess function
      * @returns {string} Prepared text
-     * */
+     */
     function replaceAndPrepareForJoin(value, characterName, fieldName, preprocess = null) {
-        value = value.trim();
-        if (!value) {
-            return '';
-        }
-
-        // Run preprocess function
+        value = value?.trim() ?? '';
+        if (!value) return '';
         if (typeof preprocess === 'function') {
             value = preprocess(value);
         }
-
-        // Prepare and replace prefixes
-        const prefix = customBaseChatReplace(group.generation_mode_join_prefix, fieldName, characterName, false);
-        const suffix = customBaseChatReplace(group.generation_mode_join_suffix, fieldName, characterName, false);
-        // Also run the macro replacement on the actual content
-        value = customBaseChatReplace(value, fieldName, characterName, true);
-
+        const prefix = customTransform(group.generation_mode_join_prefix, fieldName, characterName, false);
+        const suffix = customTransform(group.generation_mode_join_suffix, fieldName, characterName, false);
+        value = customTransform(value, fieldName, characterName, true);
         return `${prefix}${value}${suffix}`;
     }
 
     /**
-     * Fills the character profile with the provided content
-     * @param {import ('./char-data.js').v1CharData} character Content to fill
-     * @param {boolean} isActiveChar Whether the character is active
-     * @returns {string} Filled content
-    **/
-    function fillCharacterProfile(character, isActiveChar = false) {
-        if (!character) {
-            return '';
-        }
+     * Collects and joins field values from all group members
+     * @param {string} fieldName Display name of the field
+     * @param {function(Character): string} getter Function to get field value from character
+     * @param {function(string): string} [preprocess] Optional preprocess function
+     * @returns {string} Combined field values
+     */
+    function collectField(fieldName, getter, preprocess = null) {
+        const values = [];
+        for (const member of group.members) {
+            const index = characters.findIndex(x => x.avatar === member);
+            const character = characters[index];
+            if (index === -1 || !character) continue;
+            if (group.disabled_members?.includes(member) && characterId !== index) continue;
 
+            let value = getter(character) ?? '';
+            if (typeof preprocess === 'function') value = preprocess(value);
+            if (!value?.trim()) continue;
+
+            values.push(replaceAndPrepareForJoin(value, character.name, fieldName));
+        }
+        return values.join('\n');
+    }
+
+    function fillCharacterProfile(character, isActiveChar = false) {
+        if (!character) return '';
         const tag = isActiveChar ? 'active_character' : 'character';
         let content = `<${tag} name="${character.name}">`;
+        const add = (label, val) => {
+            if (val?.trim()) content += `<${label}>${val}</${label}>`;
+        };
+        add('personality', character.personality);
+        add('description', character.description);
+        add('message_examples', character.mes_example);
 
-        if (character.personality?.trim()) {
-            content += `<personality>${character.personality.trim()}</personality>`;
+        if (character.data?.post_history_instructions?.trim()) {
+            add('backstory', character.data?.post_history_instructions);
         }
 
-        if (character.description?.trim()) {
-            content += `<description>${character.description.trim()}</description>`;
+        if (isActiveChar && character.data?.system_prompt?.trim()) {
+            add('life_story', character.data.system_prompt)
         }
-
-        if (character.mes_example?.trim()) {
-            content += `<message_examples>${character.mes_example.startsWith('<START>') ? `<START>\n${character.mes_example.trim()}` : character.mes_example.trim()}</message_examples>`;
-        }
-
-        if (character.data) {
-            content += character.data.post_history_instructions?.trim() ? `<backstory>${character.data.post_history_instructions.trim()}</backstory>` : '';
-
-            if (isActiveChar && character.data.system_prompt?.trim()) {
-                content += `<life_story>${character.data.system_prompt.trim()}</life_story>`;
-            }
-        }
-
+        
         return content + `</${tag}>`;
     }
 
     const scenarioOverride = String(chat_metadata['scenario'] || '');
     const mesExamplesOverride = String(chat_metadata['mes_example'] || '');
 
-    let descriptions = [];
-    let personalities = [];
-    let scenarios = [];
-    let mesExamplesArray = [];
-    let combinedCharacters = `<characters>`;
-    let activeChar = null;
-    let activeCharContent = null;
+    const lazyFields = createLazyFields({
+        description: () => collectField('Description', c => c.description),
+        personality: () => collectField('Personality', c => c.personality),
+        scenario: () => baseChatReplace(scenarioOverride?.trim()) || collectField('Scenario', c => c.scenario),
+        mesExamples: () => baseChatReplace(mesExamplesOverride?.trim()) ||
+            collectField('Example Messages', c => c.mes_example, x => !x.startsWith('<START>') ? `<START>\n${x}` : x),
+    });
 
-    for (const member of group.members) {
-        const index = characters.findIndex(x => x.avatar === member);
-        const character = characters[index];
+    lazyFields.activeCharContent = (() => {
+        return fillCharacterProfile(characters[characterId], true);
+    })();
 
-        if (index === -1 || !character) {
-            console.debug(`Skipping missing member: ${member}`);
-            continue;
+    lazyFields.combinedCharacters = (() => {
+        let xml = '<characters>';
+        for (let i = 0; i < characters.length; i++) {
+            if (i === characterId) continue;
+            const character = characters[i];
+            if (!group.members?.includes(character.avatar)) continue;
+            if (group.disabled_members?.includes(character.avatar)) continue;
+            xml += `${fillCharacterProfile(character, false)}`;
         }
+        return `${xml}</characters>`;
+    })();
 
-        if (group.generation_mode === group_generation_mode.SEPARATE_LIST && characterId === index) {
-            activeChar = character;
-            continue;
-        }
-
-        if (
-            group.disabled_members.includes(member)
-            && characterId !== index
-            && [group_generation_mode.APPEND_DISABLED, group_generation_mode.SEPARATE_LIST].includes(group.generation_mode)
-        ) {
-            continue;
-        }
-
-        descriptions.push(replaceAndPrepareForJoin(character.description, character.name, 'Description'));
-        personalities.push(replaceAndPrepareForJoin(character.personality, character.name, 'Personality'));
-        scenarios.push(replaceAndPrepareForJoin(character.scenario, character.name, 'Scenario'));
-        mesExamplesArray.push(replaceAndPrepareForJoin(character.mes_example, character.name, 'Example Messages', (x) => !x.startsWith('<START>') ? `<START>\n${x}` : x));
-
-        if (group.generation_mode === group_generation_mode.SEPARATE_LIST) {
-            combinedCharacters += fillCharacterProfile(character, false);
-        }
-
-    }
-
-    const description = descriptions.filter(x => x.length).join('\n');
-    const personality = personalities.filter(x => x.length).join('\n');
-    const scenario = baseChatReplace(scenarioOverride?.trim(), name1, name2) || scenarios.filter(x => x.length).join('\n');
-    const mesExamples = baseChatReplace(mesExamplesOverride?.trim(), name1, name2) || mesExamplesArray.filter(x => x.length).join('\n');
-
-    if (group.generation_mode === group_generation_mode.SEPARATE_LIST) {
-        if (activeChar) {
-            activeCharContent = fillCharacterProfile(activeChar, true);
-        }
-    }
-
-    return { description, personality, scenario, mesExamples, activeCharContent, combinedCharacters: combinedCharacters + '</characters>\n' };
+    return lazyFields;
 }
 
 /**
@@ -655,7 +646,7 @@ async function getFirstCharacterMessage(character) {
     mes['original_avatar'] = character.avatar;
     mes['extra'] = { 'gen_id': Date.now() * Math.random() * 1000000 };
     mes['mes'] = messageText
-        ? substituteParams(messageText.trim(), name1, character.name)
+        ? substituteParams(messageText.trim(), { name2Override: character.name })
         : '';
     mes['force_avatar'] =
         character.avatar != 'none'

@@ -46,6 +46,7 @@ import {
     embedOpenRouterMedia,
     addReasoningContentToToolCalls,
     cachingSystemPromptForOpenRouterClaude,
+    addOpenRouterSignatures,
 } from '../../prompt-converters.js';
 
 import { readSecret, SECRET_KEYS } from '../secrets.js';
@@ -401,7 +402,7 @@ async function sendMakerSuiteRequest(request, response) {
             'gemini-3-pro-image-preview',
         ];
 
-        const isThinkingConfigModel = m => (/^gemini-2.5-(flash|pro)/.test(m) && !/-image(-preview)?$/.test(m)) || (/^gemini-3-pro/.test(m));
+        const isThinkingConfigModel = m => (/^gemini-2.5-(flash|pro)/.test(m) && !/-image(-preview)?$/.test(m)) || (/^gemini-3-(flash|pro)/.test(m));
         const isImageSizeModel = m => /^gemini-3/.test(m);
 
         const noSearchModels = [
@@ -473,8 +474,12 @@ async function sendMakerSuiteRequest(request, response) {
             const thinkingConfig = { includeThoughts: includeReasoning };
 
             const thinkingBudget = calculateGoogleBudgetTokens(generationConfig.maxOutputTokens, reasoningEffort, model);
-            if (Number.isInteger(thinkingBudget)) {
+            if (typeof thinkingBudget === 'number' && Number.isInteger(thinkingBudget)) {
                 thinkingConfig.thinkingBudget = thinkingBudget;
+            }
+
+            if (typeof thinkingBudget === 'string' && thinkingBudget.length > 0) {
+                thinkingConfig.thinkingLevel = thinkingBudget;
             }
 
             // Vertex doesn't allow mixing disabled thinking with includeThoughts
@@ -648,7 +653,7 @@ async function sendMakerSuiteRequest(request, response) {
                 return response.send({ error: { message } });
             }
 
-            // Wrap it back to OAI format
+            // Wrap it back to OAI format (responseContent includes thought signatures in parts array)
             const reply = { choices: [{ 'message': { 'content': responseText } }], responseContent };
             return response.send(reply);
         }
@@ -2051,6 +2056,7 @@ router.post('/generate', async function (request, response) {
             const cacheTTL = getConfigValue('claude.extendedTTL', false, 'boolean') ? '1h' : '5m';
             if (Array.isArray(request.body.messages)) {
                 embedOpenRouterMedia(request.body.messages);
+                addOpenRouterSignatures(request.body.messages, request.body.model);
 
                 if (isClaude3or4) {
                     if (enableSystemPromptCache) {
