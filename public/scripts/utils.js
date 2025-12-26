@@ -1760,9 +1760,11 @@ export async function convertImageFile(inputFile, type = 'image/png') {
  * @param {number|null} maxWidth The maximum width of the thumbnail.
  * @param {number|null} maxHeight The maximum height of the thumbnail.
  * @param {string} [type='image/jpeg'] The type of the thumbnail.
+ * @param {boolean} [forceRatio=false] Whether to force a square aspect ratio.
+ * @param {number} [quality=0.8] Quality for lossy formats (0-1). Only used for WebP and JPEG.
  * @returns {Promise<string>} A promise that resolves to the thumbnail data URL.
  */
-export function createThumbnail(dataUrl, maxWidth = null, maxHeight = null, type = 'image/jpeg', forceRatio = false) {
+export function createThumbnail(dataUrl, maxWidth = null, maxHeight = null, type = 'image/jpeg', forceRatio = false, quality = 0.65) {
     // Someone might pass in a base64 encoded string without the data URL prefix
     if (!dataUrl.includes('data:')) {
         dataUrl = `data:image/jpeg;base64,${dataUrl}`;
@@ -1777,9 +1779,26 @@ export function createThumbnail(dataUrl, maxWidth = null, maxHeight = null, type
 
             // Calculate the thumbnail dimensions while maintaining the aspect ratio
 
-            // if image is already squared sized, leave as is
+            // if image is already squared sized, convert with quality control for WebP
             if (img.width === img.height) {
-                resolve(dataUrl);
+                if (type === 'image/webp') {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0);
+                    
+                    canvas.toBlob(
+                        (blob) => {
+                            const reader = new FileReader();
+                            reader.onload = () => resolve(reader.result?.toString());
+                            reader.onerror = () => reject(new Error('Failed to convert canvas to data URL.'));
+                            reader.readAsDataURL(blob);
+                        },
+                        type,
+                        quality
+                    );
+                } else {
+                    resolve(dataUrl);
+                }
                 return;
             }
 
@@ -1808,7 +1827,6 @@ export function createThumbnail(dataUrl, maxWidth = null, maxHeight = null, type
                     thumbnailWidth = maxHeight * aspectRatio;
                 }
             }
-            //const { thumbnailWidth, thumbnailHeight } = calculateThumbnailSize(img.width, img.height, maxWidth, maxHeight);
 
             // if forceRatio is true, crop the image to a square
             if (forceRatio) {
@@ -1827,8 +1845,7 @@ export function createThumbnail(dataUrl, maxWidth = null, maxHeight = null, type
                 ctx.fillRect(0, 0, thumbnailWidth, thumbnailHeight);
                 ctx.drawImage(img, sx, sy, size, size, 0, 0, thumbnailWidth, thumbnailHeight);
 
-                const thumbnailDataUrl = canvas.toDataURL(type);
-                resolve(thumbnailDataUrl);
+                convertCanvasToDataUrl(canvas, type, quality, resolve, reject);
                 return;
             }
 
@@ -1841,15 +1858,39 @@ export function createThumbnail(dataUrl, maxWidth = null, maxHeight = null, type
             ctx.fillRect(0, 0, thumbnailWidth, thumbnailHeight);
             ctx.drawImage(img, 0, 0, thumbnailWidth, thumbnailHeight);
 
-            // Convert the canvas to a data URL and resolve the promise
-            const thumbnailDataUrl = canvas.toDataURL(type);
-            resolve(thumbnailDataUrl);
+            convertCanvasToDataUrl(canvas, type, quality, resolve, reject);
         };
 
         img.onerror = () => {
             reject(new Error('Failed to load the image.'));
         };
     });
+}
+
+/**
+ * Helper function to convert canvas to data URL with quality control for WebP.
+ * @param {HTMLCanvasElement} canvas The canvas element to convert.
+ * @param {string} type The MIME type of the image.
+ * @param {number} quality The quality for lossy formats (0-1).
+ * @param {Function} resolve The resolve callback.
+ * @param {Function} reject The reject callback.
+ */
+function convertCanvasToDataUrl(canvas, type, quality, resolve, reject) {
+    if (type === 'image/webp') {
+        canvas.toBlob(
+            (blob) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(new Error('Failed to convert canvas to data URL.'));
+                reader.readAsDataURL(blob);
+            },
+            type,
+            quality
+        );
+    } else {
+        const dataUrl = canvas.toDataURL(type, quality);
+        resolve(dataUrl);
+    }
 }
 
 /**
