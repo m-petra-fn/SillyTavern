@@ -1895,7 +1895,7 @@ function getMessageFromTemplate({
     mes.find('.ch_name .name_text').text(characterName);
     mes.find('.mes_bias').html(bias);
     mes.find('.timestamp').text(timestamp).attr('title', `${extra?.api ? extra.api + ' - ' : ''}${extra?.model ?? ''}`);
-    mes.find('.mesIDDisplay').text(`#${mesId}`);
+    mes.find('.mesIDDisplay').text(`[${mesId+1}]`);
     tokenCount && mes.find('.tokenCounterDisplay').text(`${tokenCount}t`);
     title && mes.attr('title', title);
     timerValue && mes.find('.mes_timer').attr('title', timerTitle).text(timerValue);
