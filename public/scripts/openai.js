@@ -1958,7 +1958,7 @@ function saveModelList(data) {
     }
 
     if (oai_settings.chat_completion_source == chat_completion_sources.CHUTES) {
-        model_list = model_list.filter(model => !model.id.toLowerCase().includes('affine'));
+        model_list = model_list.filter(model => typeof model.id === 'string' && !model.id.toLowerCase().includes('affine'));
 
         model_list = chutesSortBy(model_list, oai_settings.chutes_sort_models);
 
