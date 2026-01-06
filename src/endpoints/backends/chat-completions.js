@@ -2066,6 +2066,8 @@ router.post('/generate', async function (request, response) {
             if (getConfigValue('openai.randomizeUserId', false, 'boolean')) {
                 bodyParams['user'] = uuidv4();
             }
+
+            embedOpenRouterMedia(request.body.messages, { audio: true, video: false });
         } else if (request.body.chat_completion_source === CHAT_COMPLETION_SOURCES.OPENROUTER) {
             apiUrl = 'https://openrouter.ai/api/v1';
             apiKey = readSecret(request.user.directories, SECRET_KEYS.OPENROUTER);
@@ -2125,7 +2127,7 @@ router.post('/generate', async function (request, response) {
             const enableGeminiSystemPromptCache = getConfigValue('gemini.enableSystemPromptCache', false, 'boolean');
 
             if (Array.isArray(request.body.messages)) {
-                embedOpenRouterMedia(request.body.messages);
+                embedOpenRouterMedia(request.body.messages, { audio: true, video: true });
                 addOpenRouterSignatures(request.body.messages, request.body.model);
 
                 if (isClaude) {
@@ -2163,6 +2165,7 @@ router.post('/generate', async function (request, response) {
 
             mergeObjectWithYaml(bodyParams, request.body.custom_include_body);
             mergeObjectWithYaml(headers, request.body.custom_include_headers);
+            embedOpenRouterMedia(request.body.messages, { audio: true, video: false });
         } else if (request.body.chat_completion_source === CHAT_COMPLETION_SOURCES.PERPLEXITY) {
             apiUrl = API_PERPLEXITY;
             apiKey = readSecret(request.user.directories, SECRET_KEYS.PERPLEXITY);
