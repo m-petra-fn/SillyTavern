@@ -702,7 +702,6 @@ async function firstLoadInit() {
     initDynamicStyles();
     initTags();
     initBookmarks();
-    initMacros();
     await getUserAvatars(true, user_avatar);
     await getCharacters();
     await getBackgrounds();
@@ -2145,7 +2144,7 @@ export function appendMediaToMessage(mes, messageElement, scrollBehavior = SCROL
     // Set media display attribute
     messageElement.attr('data-media-display', mediaDisplay);
     // Toggle text visibility
-    messageElement.find('.mes_text').toggleClass('displayNone', hideMessageText);
+    messageElement.find('.mes_text').toggleClass('inline_media', hideMessageText);
 
     /**
      * Appends a single image attachment to the message element.
@@ -7782,6 +7781,10 @@ export async function getSettings() {
         setWorldInfoSettings(settings.world_info_settings ?? settings, data);
 
         selected_button = settings.selected_button;
+
+        // TODO: Move me into firstLoadInit when experimental toggle is removed
+        // power_user.experimental_macro_engine
+        initMacros();
 
         if (data.enable_extensions) {
             const enableAutoUpdate = Boolean(data.enable_extensions_auto_update);
