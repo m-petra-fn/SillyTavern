@@ -642,16 +642,16 @@ function addSecondImage(messageId, messageBlock) {
     }
 }
 
-export async function applyImageToDivs(mes, newMessage, isSecondImage = true) {
-    console.log('Applying second image to message divs if applicable.', mes, newMessage);
+export async function applyImageToDivs(messageObject, messageDiv, isSecondImage = true) {
+    console.log('Applying second image to message divs if applicable.', messageObject, messageDiv, isSecondImage);
 
-    const mesAvatarWrapper = $(newMessage).find('.mesAvatarWrapper');
-    const originalAvatarImg = $(newMessage).find('.avatarImage');
-    const secondImageWrapper = $(newMessage).find('.secondImageWrapper');
-    const secondAvatarImg = $(newMessage).find('.secondAvatarImg');
+    const mesAvatarWrapper = $(messageDiv).find('.mesAvatarWrapper');
+    const originalAvatarImg = $(messageDiv).find('.avatarImage');
+    const secondImageWrapper = $(messageDiv).find('.secondImageWrapper');
+    const secondAvatarImg = $(messageDiv).find('.secondAvatarImg');
     const hr = $(mesAvatarWrapper).find('.imageDivider');
 
-    const secondImageUrl = mes.secondImage;
+    const secondImageUrl = messageObject.secondImage;
 
     //unset display none to show the wrapper
 
@@ -662,7 +662,7 @@ export async function applyImageToDivs(mes, newMessage, isSecondImage = true) {
         secondImageWrapper.css('display', 'unset');
         hr.css('display', 'block');
     } else {
-        originalAvatarImg.attr('src', mes.force_avatar);
+        originalAvatarImg.attr('src', messageObject.force_avatar);
     }
 
 }

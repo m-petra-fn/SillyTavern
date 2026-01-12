@@ -1447,7 +1447,6 @@ export async function printMessages() {
 export async function redisplayChat({ targetChat = chat, startIndex = 0, fade = true } = {}) {
     const messageElements = chatElement.find('.mes');
     messageElements.removeClass('last_mes');
-
     //Remove messages after index.
     messageElements.filter(`.mes[mesid="${startIndex}"]`).nextAll('.mes').addBack().remove();
 
@@ -1459,6 +1458,7 @@ export async function redisplayChat({ targetChat = chat, startIndex = 0, fade = 
         const newMessageElements = messages.map((message, offset) => {
             const i = startIndex + offset;
             const messageElement = addOneMessage(message, { scroll: false, forceId: i, showSwipes: false, insert: false });
+            applyImageToDivs(message, messageElement);
 
             return messageElement[0];
         });
@@ -1471,7 +1471,6 @@ export async function redisplayChat({ targetChat = chat, startIndex = 0, fade = 
 
         applyCharacterTagsToMessageDivs({ mesIds: lodash.range(startIndex, targetChat.length, 1) });
     }
-
     refreshSwipeButtons(false, fade);
     applyStylePins();
     updateEditArrowClasses();
