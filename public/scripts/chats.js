@@ -643,6 +643,10 @@ function addSecondImage(messageId, messageBlock) {
 }
 
 export async function applyImageToDivs(messageObject, messageDiv, isSecondImage = true) {
+    if (!messageDiv || (isSecondImage && !messageObject?.secondImage) || (!isSecondImage && !messageObject?.force_avatar)) {
+        return;
+    }
+
     console.log('Applying second image to message divs if applicable.', messageObject, messageDiv, isSecondImage);
 
     const mesAvatarWrapper = $(messageDiv).find('.mesAvatarWrapper');
@@ -661,7 +665,7 @@ export async function applyImageToDivs(messageObject, messageDiv, isSecondImage 
         secondAvatarImg.attr('src', secondImageUrl);
         secondImageWrapper.css('display', 'unset');
         hr.css('display', 'block');
-    } else {
+    } else if (messageObject.force_avatar) {
         originalAvatarImg.attr('src', messageObject.force_avatar);
     }
 
