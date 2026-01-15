@@ -54,6 +54,7 @@ import {
     system_avatar,
     system_message_types,
     this_chid,
+    updateMessageElement,
 } from '../script.js';
 import { SlashCommandParser } from './slash-commands/SlashCommandParser.js';
 import { SlashCommandParserError } from './slash-commands/SlashCommandParserError.js';
@@ -4648,7 +4649,7 @@ async function messageRoleCallback(args, role) {
     await eventSource.emit(event_types.MESSAGE_EDITED, modifyAt);
     const existingMessage = chatElement.find(`.mes[mesid="${modifyAt}"]`);
     if (existingMessage.length) {
-        const newMessageElement = addOneMessage(message, { forceId: modifyAt, insert: false, scroll: false });
+        const newMessageElement = updateMessageElement(message, { messageId: modifyAt });
         existingMessage.after(newMessageElement);
         existingMessage.remove();
     }
@@ -4714,7 +4715,7 @@ async function messageNameCallback(args, name) {
     await eventSource.emit(event_types.MESSAGE_EDITED, modifyAt);
     const existingMessage = chatElement.find(`.mes[mesid="${modifyAt}"]`);
     if (existingMessage.length) {
-        const newMessageElement = addOneMessage(message, { forceId: modifyAt, insert: false, scroll: false });
+        const newMessageElement = updateMessageElement(message, { messageId: modifyAt });
         existingMessage.after(newMessageElement);
         existingMessage.remove();
     }

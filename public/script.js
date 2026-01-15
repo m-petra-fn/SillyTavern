@@ -388,7 +388,7 @@ let chatSaveTimeout;
 let importFlashTimeout;
 export let isChatSaving = false;
 let firstRun = false;
-let settingsReady = false;
+export let settingsReady = false;
 let currentVersion = '0.0.0';
 export let displayVersion = 'SillyTavern';
 
@@ -1397,7 +1397,7 @@ export async function showMoreMessages(messagesToLoad = null) {
     const firstId = clamp(messageId - count, 0, Infinity);
     const messageElements = [];
     chat.slice(firstId, messageId).forEach((message, id) => {
-        messageElements.push(addOneMessage(message, { scroll: false, forceId: firstId + id, showSwipes: false, insert: false }));
+        messageElements.push(updateMessageElement(message, { messageId: firstId + id }));
     });
     // This could be faster: https://developer.mozilla.org/en-US/docs/Web/API/Element/insertAdjacentElement
     // Fallback to chatElement if the button isn't where it's expected to be.
@@ -1457,8 +1457,7 @@ export async function redisplayChat({ targetChat = chat, startIndex = 0, fade = 
     if (messages.length > 0) {
         const newMessageElements = messages.map((message, offset) => {
             const i = startIndex + offset;
-            const messageElement = addOneMessage(message, { scroll: false, forceId: i, showSwipes: false, insert: false });
-            applyImageToDivs(message, messageElement);
+            const messageElement = updateMessageElement(message, { messageId: i });
 
             return messageElement[0];
         });
@@ -2429,16 +2428,15 @@ function getMessageTextHTML(message, { messageId = chat.indexOf(message) }) {
  * Adds a single message to the chat.
  * @param {ChatMessage} mes Message object
  * @param {object} [options] Options
- * @param {string} [options.type='normal'] Message type
+ * @param {string} [options.type=undefined|'swipe'] Deprecated. Use updateMessageElement instead.
  * @param {number} [options.insertAfter=null] Message ID to insert the new message after
  * @param {boolean} [options.scroll=true] Whether to scroll to the new message
  * @param {number} [options.insertBefore=null] Message ID to insert the new message before
  * @param {number} [options.forceId=null] Force the message ID
  * @param {boolean} [options.showSwipes=true] Whether to refresh the swipe buttons.
- * @param {boolean} [options.insert=true] Whether to insert the message into the DOM.
  * @returns {JQuery<HTMLElement>} The newly added message element
  */
-export function addOneMessage(mes, { type = 'normal', insertAfter = null, scroll = true, insertBefore = null, forceId = null, showSwipes = true, insert = true } = {}) {
+export function addOneMessage(mes, { type = undefined, insertAfter = null, scroll = true, insertBefore = null, forceId = null, showSwipes = true } = {}) {
     // Callers push the new message to chat before calling addOneMessage
     const messageId = (() => {
         if (typeof forceId === 'number') {
@@ -2457,6 +2455,55 @@ export function addOneMessage(mes, { type = 'normal', insertAfter = null, scroll
         return chat.length - 1;
     })();
 
+    let messageElement;
+
+    if (type === 'swipe') {
+        // Forbidden black magic
+        // This allows to use "continue" on user messages
+        mes.swipe_id ??= 0;
+        mes.swipes ??= [mes.mes];
+        //This keeps listeners intact.
+        messageElement = chatElement.find(`[mesid="${messageId}"]`);
+        updateMessageElement(mes, { messageId, messageElement, adjustMediaScroll: scroll ? SCROLL_BEHAVIOR.ADJUST : SCROLL_BEHAVIOR.NONE });
+    } else {
+        messageElement = updateMessageElement(mes, { messageId, adjustMediaScroll: scroll ? SCROLL_BEHAVIOR.ADJUST : SCROLL_BEHAVIOR.NONE });
+        if (typeof insertAfter === 'number' && insertAfter >= 0) {
+            const target = chatElement.find(`.mes[mesid="${insertAfter}"]`);
+            $(messageElement).insertAfter(target);
+        } else if (typeof insertBefore === 'number' && insertBefore >= 0) {
+            const target = chatElement.find(`.mes[mesid="${insertBefore}"]`);
+            $(messageElement).insertBefore(target);
+        } else {
+            chatElement.append(messageElement);
+        }
+    }
+
+
+    //last_mes should always be updated.
+    chatElement.find('.mes').removeClass('last_mes');
+    chatElement.find('.mes').last().addClass('last_mes');
+
+    if (showSwipes) refreshSwipeButtons();
+    // Don't scroll if not inserting last
+    if (!insertAfter && !insertBefore && scroll) {
+        scrollChatToBottom({ waitForFrame: true });
+    }
+
+    applyCharacterTagsToMessageDivs({ mesIds: messageId });
+    updateEditArrowClasses();
+    return messageElement;
+}
+
+/**
+ * Creates the element of a single message as if it were the last message or at forceMesId
+ * @param {ChatMessage} mes Message object
+ * @param {object} [options] Options
+ * @param {number} [options.messageId=chat.length - 1] Force the message ID
+ * @param {JQuery<HTMLElement>} [options.messageElement=messageTemplate.clone()] This message element will be updated with the ChatMessage object.
+ * @param {SCROLL_BEHAVIOR} [options.adjustMediaScroll=SCROLL_BEHAVIOR.NONE] Scroll behavior option passed to appendMediaToMessage.
+ * @returns {JQuery<HTMLElement>} Rendered HTMLElement.
+ */
+export function updateMessageElement(mes, { messageId = chat.length - 1, messageElement = messageTemplate.clone(), adjustMediaScroll = SCROLL_BEHAVIOR.NONE } = {}) {
 
     let avatarImg = getThumbnailUrl('persona', user_avatar);
 
@@ -2485,19 +2532,6 @@ export function addOneMessage(mes, { type = 'normal', insertAfter = null, scroll
     const bookmarkLink = mes?.extra?.bookmark_link;
     const tokenCount = mes.extra?.token_count;
     const { timerValue, timerTitle } = formatGenerationTimer(mes.gen_started, mes.gen_finished, mes.extra?.token_count, mes.extra?.reasoning_duration, mes.extra?.time_to_first_token);
-
-    let messageElement;
-
-    if (type === 'swipe') {
-        // Forbidden black magic
-        // This allows to use "continue" on user messages
-        mes.swipe_id ??= 0;
-        mes.swipes ??= [mes.mes];
-        //This keeps listeners intact.
-        messageElement = chatElement.find(`[mesid="${messageId}"]`);
-    } else {
-        messageElement = messageTemplate.clone();
-    }
 
     messageElement.attr({
         'mesid': messageId,
@@ -2532,18 +2566,6 @@ export function addOneMessage(mes, { type = 'normal', insertAfter = null, scroll
         insertSVGIcon(messageElement, mes.extra);
     }
 
-    if (type !== 'swipe' && insert) {
-        if (typeof insertAfter === 'number' && insertAfter >= 0) {
-            const target = chatElement.find(`.mes[mesid="${insertAfter}"]`);
-            $(messageElement).insertAfter(target);
-        } else if (typeof insertBefore === 'number' && insertBefore >= 0) {
-            const target = chatElement.find(`.mes[mesid="${insertBefore}"]`);
-            $(messageElement).insertBefore(target);
-        } else {
-            chatElement.append(messageElement);
-        }
-    }
-
     if (mes?.extra?.isSmallSys === true) {
         messageElement.addClass('smallSysMes');
     }
@@ -2559,7 +2581,7 @@ export function addOneMessage(mes, { type = 'normal', insertAfter = null, scroll
         $(this).parent().html('<div class="missing-avatar fa-solid fa-user-slash"></div>');
     });
 
-    appendMediaToMessage(mes, messageElement, scroll ? SCROLL_BEHAVIOR.ADJUST : SCROLL_BEHAVIOR.NONE);
+    appendMediaToMessage(mes, messageElement, adjustMediaScroll);
     messageElement.find('.mes_text').html(messageHTML);
     addCopyToCodeBlocks(messageElement);
 
@@ -2568,29 +2590,9 @@ export function addOneMessage(mes, { type = 'normal', insertAfter = null, scroll
         updateSwipeCounter(messageId, { message: mes, messageElement });
     }
 
-    // The caller should handle the rest after adding a message to DOM.
-    if (!insert) {
-        return messageElement;
-    }
-
-    //last_mes should always be updated.
-    chatElement.find('.mes').removeClass('last_mes');
-    chatElement.find('.mes').last().addClass('last_mes');
-    if (showSwipes) {
-        refreshSwipeButtons();
-    }
-
-    // Don't scroll if not inserting last
-    if (!insertAfter && !insertBefore && scroll) {
-        scrollChatToBottom({ waitForFrame: true });
-    }
-
     if (mes.secondImage) {
         applyImageToDivs(mes, messageElement);
     }
-
-    applyCharacterTagsToMessageDivs({ mesIds: messageId });
-    updateEditArrowClasses();
 
     return messageElement;
 }
@@ -9491,6 +9493,11 @@ function addAlternateGreeting(template, greeting, index, getArray, popup) {
  * @param {Event} [e] Event that triggered the function call.
  */
 export async function createOrEditCharacter(e) {
+    if (!settingsReady) {
+        console.warn('Settings not ready, aborting character creation/editing.');
+        return;
+    }
+
     $('#rm_info_avatar').html('');
     const formData = new FormData(/** @type {HTMLFormElement} */($('#form_create').get(0)));
     formData.set('fav', String(fav_ch_checked));
@@ -11726,7 +11733,7 @@ jQuery(async function () {
         }
 
         chat.splice(Number(this_edit_mes_id) + 1, 0, clone);
-        const newMessageElement = addOneMessage(clone, { insert: false });
+        const newMessageElement = updateMessageElement(clone);
         this_edit_mes_element.after(newMessageElement);
 
         updateViewMessageIds();
