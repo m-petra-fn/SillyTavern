@@ -2549,7 +2549,7 @@ export function updateMessageElement(mes, { messageId = chat.length - 1, message
     messageElement.find('.avatar img').attr('src', avatarImg);
     messageElement.find('.ch_name .name_text').text(mes.name);
     messageElement.find('.timestamp').text(timestamp).attr('title', `${mes.extra?.api ? mes.extra.api + ' - ' : ''}${mes.extra?.model ?? ''}`);
-    messageElement.find('.mesIDDisplay').text(`[${messageId}]`);
+    messageElement.find('.mesIDDisplay').text(`[${messageId + 1}]`);
     tokenCount && messageElement.find('.tokenCounterDisplay').text(`${tokenCount}t`);
     mes.title && messageElement.attr('title', mes.title);
     timerValue && messageElement.find('.mes_timer').attr('title', timerTitle).text(timerValue);
@@ -9215,7 +9215,7 @@ export function updateViewMessageIds(startIndex = null) {
 
     chatElement.find('.mes').each(function (index, element) {
         $(element).attr('mesid', minId + index);
-        $(element).find('.mesIDDisplay').text(`[${minId + index}]`);
+        $(element).find('.mesIDDisplay').text(`[${minId + index + 1}]`);
     });
 
     chatElement.find('.mes').removeClass('last_mes');
