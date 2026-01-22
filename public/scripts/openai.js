@@ -1318,7 +1318,7 @@ async function preparePromptsForChatCompletion({ scenario, charPersonality, acti
     });
 
     // Smart Context (ChromaDB)
-    const smartContext = extensionPrompts['chromadb'];
+    const smartContext = extensionPrompts.chromadb;
     if (smartContext && smartContext.value) systemPrompts.push({
         role: 'system',
         content: smartContext.value,
