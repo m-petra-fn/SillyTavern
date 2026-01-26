@@ -1193,7 +1193,7 @@ export async function getOneCharacter(avatarUrl) {
     }
 }
 
-function getCharacterSource(chId = this_chid) {
+export function getCharacterSource(chId = this_chid) {
     const character = characters[chId];
 
     if (!character) {
