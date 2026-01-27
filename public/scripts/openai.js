@@ -4921,8 +4921,13 @@ function getMoonshotMaxContext(model, isUnlocked) {
         'moonshot-v1-32k-vision-preview': max_32k,
         'moonshot-v1-128k-vision-preview': max_128k,
         'kimi-k2-0711-preview': max_32k,
-        'kimi-latest': max_32k,
+        'kimi-latest': max_256k,
         'kimi-thinking-preview': max_32k,
+        'kimi-k2.5': max_256k,
+        'kimi-k2-0905-preview': max_256k,
+        'kimi-k2-turbo-preview': max_256k,
+        'kimi-k2-thinking': max_256k,
+        'kimi-k2-thinking-turbo': max_256k,
     };
 
     // Return context size if model found, otherwise default to 32k
@@ -5849,6 +5854,8 @@ export function isImageInliningSupported() {
         'moonshot-v1-8k-vision-preview',
         'moonshot-v1-32k-vision-preview',
         'moonshot-v1-128k-vision-preview',
+        'kimi-k2.5',
+        'kimi-latest',
         // Z.AI (GLM)
         'glm-4.5v',
         'glm-4.6v',
@@ -5900,7 +5907,7 @@ export function isImageInliningSupported() {
         case chat_completion_sources.COMETAPI:
             return true;
         case chat_completion_sources.MOONSHOT:
-            return visionSupportedModels.some(model => oai_settings.moonshot_model.includes(model));
+            return (Array.isArray(model_list) && model_list.find(m => m.id === oai_settings.moonshot_model)?.supports_image_in);
         case chat_completion_sources.NANOGPT:
             return (Array.isArray(model_list) && model_list.find(m => m.id === oai_settings.nanogpt_model)?.capabilities?.vision);
         case chat_completion_sources.ZAI:
