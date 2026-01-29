@@ -2748,6 +2748,17 @@ export async function createGenerationParameters(settings, model, type, messages
         generate_data.top_a = Number(settings.top_a_openai);
     }
 
+    // https://platform.moonshot.ai/docs/api/chat#public-service-address
+    if (settings.chat_completion_source === chat_completion_sources.MOONSHOT) {
+        // >Kimi API is fully compatible with OpenAI's API format
+        if (/kimi-k2.5/.test(model)) {
+            delete generate_data.temperature;
+            delete generate_data.top_p;
+            delete generate_data.frequency_penalty;
+            delete generate_data.presence_penalty;
+        }
+    }
+
     if (seedSupportedSources.includes(settings.chat_completion_source) && settings.seed >= 0) {
         generate_data.seed = settings.seed;
     }
