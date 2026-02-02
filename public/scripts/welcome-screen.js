@@ -35,7 +35,7 @@ import { callGenericPopup, POPUP_TYPE } from './popup.js';
 import { getMessageTimeStamp } from './RossAscends-mods.js';
 import { renderTemplateAsync } from './templates.js';
 import { accountStorage } from './util/AccountStorage.js';
-import { flashHighlight, sortMoments, timestampToMoment } from './utils.js';
+import { flashHighlight, isElementInViewport, sortMoments, timestampToMoment } from './utils.js';
 
 const assistantAvatarKey = 'assistant';
 const pinnedChatsKey = 'pinnedChats';
@@ -616,7 +616,9 @@ async function refreshWelcomeScreen({ flashChat = null } = {}) {
                 ((flashChat.is_group && group === flashChat.group) || (!flashChat.is_group && avatar === flashChat.avatar));
         });
         if (chatToFlash instanceof HTMLElement) {
-            chatElement.scrollTop = chatToFlash.offsetTop - chatElement.offsetTop - (chatToFlash.clientHeight / 2);
+            if (!isElementInViewport(chatToFlash)) {
+                chatElement.scrollTop = chatToFlash.offsetTop - chatElement.offsetTop - (chatToFlash.clientHeight / 2);
+            }
             flashHighlight($(chatToFlash), 1000);
         }
     } else {
