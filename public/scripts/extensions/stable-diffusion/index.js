@@ -728,7 +728,8 @@ async function onDeleteStyleClick() {
 }
 
 async function onSaveStyleClick() {
-    const userInput = await callGenericPopup('Enter style name:', POPUP_TYPE.INPUT);
+    const selectedStyle = extension_settings.sd.style || '';
+    const userInput = await callGenericPopup(t`Enter style name:`, POPUP_TYPE.INPUT, selectedStyle);
 
     if (!userInput) {
         return;
