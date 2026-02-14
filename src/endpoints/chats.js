@@ -595,7 +595,7 @@ router.post('/export', validateAvatarUrlMiddleware, async function (request, res
     const pathToFolder = request.body.is_group
         ? request.user.directories.groupChats
         : path.join(request.user.directories.chats, String(request.body.avatar_url).replace('.png', ''));
-    let filename = path.join(pathToFolder, request.body.file);
+    let filename = path.join(pathToFolder, sanitize(request.body.file));
     let exportfilename = request.body.exportfilename;
     if (!fs.existsSync(filename)) {
         const errorMessage = {
