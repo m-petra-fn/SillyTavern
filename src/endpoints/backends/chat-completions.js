@@ -1428,8 +1428,7 @@ async function sendElectronHubRequest(request, response) {
             console.debug('Electron Hub response:', generateResponseJson);
             return response.send(generateResponseJson);
         }
-    }
-    catch (error) {
+    } catch (error) {
         console.error('Error communicating with Electron Hub: ', error);
         if (!response.headersSent) {
             response.send({ error: true });
@@ -1530,8 +1529,7 @@ async function sendChutesRequest(request, response) {
             console.debug('Chutes response:', generateResponseJson);
             return response.send(generateResponseJson);
         }
-    }
-    catch (error) {
+    } catch (error) {
         console.error('Error communicating with Chutes: ', error);
         if (!response.headersSent) {
             response.send({ error: true });
@@ -1913,8 +1911,7 @@ router.post('/status', async function (request, statusResponse) {
                     console.warn('Chat Completion endpoint did not return a list of models.');
                 }
             }
-        }
-        else {
+        } else {
             console.error('Chat Completion status check failed. Either Access Token is incorrect or API endpoint is down.');
             statusResponse.send({ error: true, data: { data: [] } });
         }
@@ -2244,7 +2241,7 @@ router.post('/generate', async function (request, response) {
                 bodyParams['reasoning'] = { effort: effort };
             }
 
-            const isClaude = /^claude-/.test(request.body.model);
+            const isClaude = /(?:^|\/)claude[-_]/.test(request.body.model);
             if (enableSystemPromptCache && isClaude) {
                 bodyParams['cache_control'] = {
                     'enabled': true,
