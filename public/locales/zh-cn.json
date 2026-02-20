@@ -2219,7 +2219,7 @@
     "sd_res_1280x720": "1280x720 (16:9，720p，横向壁纸)",
     "sd_res_720x1280": "720x1280 (9:16，720p，纵向壁纸)",
     "<Enter Model ID above>": "<在上方输入模型 ID>",
-    "Generating image": "正在生成图像",
+    "Generating an image": "正在生成图像",
     "Delete the workflow? This action is irreversible.": "删除工作流？此操作无法被撤销。",
     "Enter new workflow name:": "输入新工作流名称：",
     "A workflow with that name already exists": "已存在同名工作流",
