@@ -2046,5 +2046,9 @@
     "System Prompt Name": "Nom du prompt système:",
     "Instruct Mode": "Mode Instruction:",
     "Save and Update": "Sauvegarder et mettre à jour",
-    "Don't ask again for this URL": "Ne plus demander pour cette URL"
+    "Don't ask again for this URL": "Ne plus demander pour cette URL",
+    "Interleaved Thinking": "Raisonnement intercalé",
+    "Since Last User Message": "Depuis le dernier message utilisateur",
+    "Active Tool Chain": "Chaîne d'outils active",
+    "openrouter_interleaved_thinking_hint": "Envoie le raisonnement des tours précédents de l'assistant avec les requêtes d'outils pour conserver le contexte du raisonnement intercalé."
 }
