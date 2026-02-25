@@ -2091,6 +2091,8 @@ async function loadFalaiModels() {
 
 async function loadXAIModels() {
     return [
+        { value: 'grok-imagine-image', text: 'grok-imagine-image' },
+        { value: 'grok-imagine-image-pro', text: 'grok-imagine-image-pro' },
         { value: 'grok-2-image-1212', text: 'grok-2-image-1212' },
     ];
 }
@@ -3547,7 +3549,7 @@ async function generateExtrasImage(prompt, negativePrompt, signal) {
  * Gets an aspect ratio for Stability that is the closest to the given width and height.
  * @param {number} width Target width
  * @param {number} height Target height
- * @param {'google'|'stability'|'zai'} source Source of the request, used to determine aspect ratio
+ * @param {'google'|'stability'|'zai'|'xai'} source Source of the request, used to determine aspect ratio
  * @returns {string} Closest aspect ratio as a string
  */
 function getClosestAspectRatio(width, height, source) {
@@ -3578,6 +3580,22 @@ function getClosestAspectRatio(width, height, source) {
                     '1:1': 1,
                     '16:9': 16 / 9,
                     '9:16': 9 / 16,
+                };
+            case 'xai':
+                return {
+                    '1:1': 1,
+                    '3:4': 3 / 4,
+                    '4:3': 4 / 3,
+                    '9:16': 9 / 16,
+                    '16:9': 16 / 9,
+                    '2:3': 2 / 3,
+                    '3:2': 3 / 2,
+                    '9:19.5': 9 / 19.5,
+                    '19.5:9': 19.5 / 9,
+                    '9:20': 9 / 20,
+                    '20:9': 20 / 9,
+                    '1:2': 1 / 2,
+                    '2:1': 2 / 1,
                 };
             default:
                 console.warn(`Unknown source "${source}" for aspect ratio calculation.`);
@@ -4464,6 +4482,16 @@ async function generateBflImage(prompt, signal) {
  * @returns {Promise<{format: string, data: string}>} A promise that resolves when the image generation and processing are complete.
  */
 async function generateXAIImage(prompt, _negativePrompt, signal) {
+    let aspectRatio;
+    let resolution;
+
+    if (/grok-imagine/.test(extension_settings.sd.model)) {
+        const resolutionThreshold = 1296 * 864;
+        const use2kResolution = (extension_settings.sd.width * extension_settings.sd.height) > resolutionThreshold;
+        aspectRatio = getClosestAspectRatio(extension_settings.sd.width, extension_settings.sd.height, 'xai');
+        resolution = use2kResolution ? '2k' : '1k';
+    }
+
     const result = await fetch('/api/sd/xai/generate', {
         method: 'POST',
         headers: getRequestHeaders(),
@@ -4471,12 +4499,14 @@ async function generateXAIImage(prompt, _negativePrompt, signal) {
         body: JSON.stringify({
             prompt: prompt,
             model: extension_settings.sd.model,
+            aspect_ratio: aspectRatio,
+            resolution: resolution,
         }),
     });
 
     if (result.ok) {
         const data = await result.json();
-        return { format: 'jpg', data: data.image };
+        return { format: data.format, data: data.image };
     } else {
         const text = await result.text();
         throw new Error(text);

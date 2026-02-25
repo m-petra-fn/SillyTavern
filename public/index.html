@@ -2460,7 +2460,10 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <h4 data-i18n="Model Providers">Model Providers</h4>
+                                    <h4>
+                                        <span data-i18n="Model Providers">Model Providers</span>
+                                        <i id="openrouter_provider_warning_text" class="fa-solid fa-circle-exclamation displayNone" title="Deselect inapplicable provider(s) or select an applicable provider to avoid a 404 error."></i>
+                                    </h4>
                                     <select id="openrouter_providers_text" class="openrouter_providers" multiple>
                                     </select>
                                     <label class="checkbox_label" data-i18n="[title]Automatically chooses an alternative provider if chosen providers can't serve your request." for="openrouter_allow_fallbacks_textgenerationwebui" title="Automatically chooses an alternative provider if chosen providers can't serve your request.">
@@ -3214,7 +3217,10 @@
                                 </div>
                             </div>
                             <div>
-                                <h4 data-i18n="Model Providers">Model Providers</h4>
+                                <h4>
+                                    <span data-i18n="Model Providers">Model Providers</span>
+                                    <i id="openrouter_provider_warning_chat" class="fa-solid fa-circle-exclamation displayNone" title="Deselect inapplicable provider(s) or select an applicable provider to avoid a 404 error."></i>
+                                </h4>
                                 <select id="openrouter_providers_chat" class="openrouter_providers" multiple>
                                 </select>
                                 <label class="checkbox_label marginTopBot5" for="openrouter_allow_fallbacks" data-i18n="[title]Automatically chooses an alternative provider if chosen providers can't serve your request." title="Automatically chooses an alternative provider if chosen providers can't serve your request.">
@@ -5591,6 +5597,10 @@
                             <i class="fa-solid fa-wand-magic"></i>
                             <span data-i18n="Auto-select">Auto-select</span>
                         </div>
+                        <button id="bg_add_folder_button" class="menu_button menu_button_icon" data-i18n="[title]New Folder" title="New Folder">
+                            <i class="fa-solid fa-folder-plus"></i>
+                            <span data-i18n="New Folder">New Folder</span>
+                        </button>
                         <label for="add_bg_button" id="add_background_button_top" class="menu_button menu_button_icon" data-i18n="[title]Add a new background" title="Add a new background">
                             <i class="fa-solid fa-upload"></i>
                             <span data-i18n="Add Background">Add Background</span>
@@ -5624,6 +5634,14 @@
                         </div>
                     </ul>
                     <div id="bg_global_tab" class="bg_tab_panel">
+                        <div id="bg_folder_breadcrumb" class="bg_folder_breadcrumb" style="display:none;">
+                            <button id="bg_back_to_folders" class="menu_button menu_button_icon">
+                                <i class="fa-solid fa-arrow-left"></i>
+                                <span data-i18n="Back">Back</span>
+                            </button>
+                            <span id="bg_current_folder_name" class="bg_current_folder_name"></span>
+                        </div>
+                        <div id="bg_folder_grid" class="bg_list bg_folder_grid"></div>
                         <div id="bg_menu_content" class="bg_list"></div>
                     </div>
                     <div id="bg_chat_tab" class="bg_tab_panel">
@@ -6593,8 +6611,32 @@
                     <div data-action="copy" class="jg-button jg-copy fa-solid fa-file-arrow-up" data-i18n="[title]Copy to global backgrounds" title="Copy to global backgrounds"></div>
                     <div data-action="edit" class="jg-button jg-edit fa-solid fa-pen-to-square fa-fw pointer" data-i18n="[title]Rename Background" title="Rename Background"></div>
                     <div data-action="delete" class="jg-button jg-delete fa-solid fa-trash-can fa-fw pointer" data-i18n="[title]Delete Background" title="Delete Background"></div>
+                    <div data-action="folder" class="jg-button jg-folder fa-solid fa-folder fa-fw pointer" data-i18n="[title]Add to folder" title="Add to folder"></div>
+                    <div data-action="set-cover" class="jg-button jg-set-cover fa-solid fa-image fa-fw pointer" data-i18n="[title]Set as folder cover" title="Set as folder cover"></div>
                 </div>
                 <div class="BGSampleTitle"></div>
+            </div>
+        </div>
+        <div id="bg_folder_tile_template" class="template_element">
+            <div class="bg_folder_tile" data-folder-id="">
+                <div class="bg_folder_tile_cover"></div>
+                <div class="bg_folder_tile_overlay">
+                    <i class="fa-solid fa-folder"></i>
+                    <span class="bg_folder_tile_name"></span>
+                </div>
+                <div class="mobile-only-menu-toggle">
+                    <i class="fa-solid fa-ellipsis-vertical"></i>
+                </div>
+                <div class="bg_folder_tile_menu jg-menu">
+                    <div data-action="rename-folder" class="jg-button fa-solid fa-pen-to-square fa-fw pointer" data-i18n="[title]Rename folder" title="Rename folder"></div>
+                    <div data-action="delete-folder" class="jg-button fa-solid fa-trash-can fa-fw pointer" data-i18n="[title]Delete folder" title="Delete folder"></div>
+                </div>
+            </div>
+        </div>
+        <div id="bg_new_folder_template" class="template_element">
+            <div class="bg_folder_tile bg_new_folder_tile">
+                <i class="fa-solid fa-folder-plus fa-2x"></i>
+                <span data-i18n="New Folder">New Folder</span>
             </div>
         </div>
         <!-- templates for JS to reuse when needed -->

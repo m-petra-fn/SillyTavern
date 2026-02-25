@@ -5,7 +5,7 @@ import express from 'express';
 import sanitize from 'sanitize-filename';
 
 import { invalidateThumbnail } from './thumbnails.js';
-import { getOrGenerateMetadataBatch, removeMetadata, renameMetadata, thumbnailDimensions } from './image-metadata.js';
+import { thumbnailDimensions, readMetadataIndex, renameMetadata, removeMetadata, getOrGenerateMetadataBatch } from './image-metadata.js';
 import { getImages } from '../util.js';
 import { getFileNameValidationFunction } from '../middleware/validateFileName.js';
 
@@ -34,6 +34,34 @@ router.post('/all', async function (request, response) {
     } catch (error) {
         console.error('[Backgrounds] Error fetching backgrounds:', error);
         response.status(500).json({ error: 'Failed to fetch backgrounds' });
+    }
+});
+
+/**
+ * POST /api/backgrounds/folders
+ * Returns folders and per-image folderIds from the metadata index.
+ * Loaded separately from /all to avoid blocking image rendering.
+ */
+router.post('/folders', async function (request, response) {
+    try {
+        const index = await readMetadataIndex(request.user.directories.root);
+        const folders = index.folders || [];
+
+        // Build a slim map of image → folderIds for the frontend
+        /** @type {Object.<string, string[]>} */
+        const imageFolderMap = {};
+        for (const [relativePath, meta] of Object.entries(index.images)) {
+            if (Array.isArray(meta.folderIds) && meta.folderIds.length > 0) {
+                // Strip the directory prefix to get just the filename
+                const filename = relativePath.split('/').pop() || relativePath;
+                imageFolderMap[filename] = meta.folderIds;
+            }
+        }
+
+        response.json({ folders, imageFolderMap });
+    } catch (error) {
+        console.error('[Backgrounds] Folders endpoint error:', error);
+        response.status(500).json({ error: 'Internal server error.' });
     }
 });
 
@@ -110,7 +138,6 @@ router.post('/upload', async function (request, response) {
 
         const img_path = path.join(request.file.destination, request.file.filename);
         const filename = sanitize(request.file.originalname);
-
         fs.copyFileSync(img_path, path.join(request.user.directories.backgrounds, filename));
         fs.unlinkSync(img_path);
         invalidateThumbnail(request.user.directories, 'bg', filename);
