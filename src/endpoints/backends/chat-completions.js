@@ -97,6 +97,7 @@ const cachingAtDepth = (() => {
     const value = getConfigValue('claude.cachingAtDepth', -1, 'number');
     return Number.isInteger(value) && value >= 0 ? value : -1;
 })();
+const enableAdaptiveThinking = getConfigValue('claude.enableAdaptiveThinking', true, 'boolean');
 
 /**
  * Cache for cacheable (writing) OpenRouter model IDs.
@@ -228,7 +229,7 @@ async function sendClaudeRequest(request, response) {
         const isLimitedSampling = /^claude-(opus-4-1|sonnet-4-5|haiku-4-5|opus-4-5|opus-4-6|sonnet-4-6)/.test(request.body.model);
         const useVerbosity = /^claude-(opus-4-5|opus-4-6|sonnet-4-6)/.test(request.body.model);
         const noPrefillModel = /^claude-(opus-4-6|sonnet-4-6)/.test(request.body.model);
-        const isAdaptiveModel = /^claude-(opus-4-6|sonnet-4-6)/.test(request.body.model);
+        const isAdaptiveModel = enableAdaptiveThinking && /^claude-(opus-4-6|sonnet-4-6)/.test(request.body.model);
         let fixThinkingPrefill = false;
         // Add custom stop sequences
         const stopSequences = [];

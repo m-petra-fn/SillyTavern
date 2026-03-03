@@ -3243,7 +3243,7 @@ export function baseChatReplace(value, name1Override = null, name2Override = nul
 
 /**
  * Helper to create an object with lazy, memoized getters from a map of field resolvers.
- * @param {Record<string, () => string>} resolvers Map of field names to resolver functions
+ * @param {Record<string, () => string|string[]>} resolvers Map of field names to resolver functions
  * @returns {CharacterCardFields} Object with lazy getters
  */
 export function createLazyFields(resolvers) {
@@ -3281,7 +3281,7 @@ export function getCharacterCardFieldsLazy({ chid = undefined } = {}) {
     const useGroupCards = selected_group && character;
     const groupCardsLazy = useGroupCards ? getGroupCharacterCardsLazy(selected_group, Number(currentChid)) : null;
 
-    /** @type {Record<string, () => string>} */
+    /** @type {Record<string, () => string|string[]>} */
     const resolvers = {
         persona: () => baseChatReplace(power_user.persona_description?.trim()),
         system: () => {
