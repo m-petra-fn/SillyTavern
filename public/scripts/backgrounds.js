@@ -20,6 +20,10 @@ let folderList = [];
 let imageFolderMap = {};
 /** @type {string|null} Currently active folder drill-in, or null for root */
 let activeFolderId = null;
+/** @type {Set<string>} Selected system backgrounds for group folder actions */
+const selectedSystemBackgroundFiles = new Set();
+/** @type {boolean} Whether click-to-select mode is active for system backgrounds */
+let isBackgroundSelectionMode = false;
 
 // A single transparent PNG pixel used as a placeholder for errored backgrounds
 const PNG_PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
@@ -365,6 +369,11 @@ function removeBackgroundMetadata() {
 function onSelectBackgroundClick(e) {
     const bgFile = $(this).attr('bgfile');
     const isCustom = $(this).attr('custom') === 'true';
+    if (isBackgroundSelectionMode && !isCustom) {
+        toggleBackgroundGroupSelection(bgFile);
+        return;
+    }
+
     const backgroundCssUrl = getUrlParameter(this);
     const bypassGlobalLock = !isCustom && e.shiftKey;
 
@@ -576,6 +585,7 @@ async function onDeleteBackgroundClick(e) {
         if (deletedBg) {
             const cachedIdx = cachedSystemBackgrounds.findIndex(img => img.filename === deletedBg);
             if (cachedIdx !== -1) cachedSystemBackgrounds.splice(cachedIdx, 1);
+            selectedSystemBackgroundFiles.delete(deletedBg);
 
             // Update folder map and clear folder thumbnail if it referenced this image
             if (imageFolderMap[deletedBg]) {
@@ -605,6 +615,7 @@ async function onDeleteBackgroundClick(e) {
 
         highlightLockedBackground();
         highlightSelectedBackground();
+        syncGroupSelectionUi();
     }
 }
 
@@ -652,7 +663,10 @@ function renderSystemBackgrounds(backgrounds) {
     const container = $('#bg_menu_content');
     container.empty();
 
-    if (sourceList.length === 0) return;
+    if (sourceList.length === 0) {
+        syncGroupSelectionUi();
+        return;
+    }
 
     const sortedList = sortBackgrounds(sourceList.map(bg => bg.filename), false);
     const metadataByFilename = new Map(sourceList.map(bg => [bg.filename, bg]));
@@ -663,6 +677,7 @@ function renderSystemBackgrounds(backgrounds) {
         container.append(thumbnail);
     });
 
+    syncGroupSelectionUi();
     activateLazyLoader();
 }
 
@@ -700,6 +715,12 @@ export async function getBackgrounds() {
         const { images, config } = await response.json();
         Object.assign(THUMBNAIL_CONFIG, config);
         cachedSystemBackgrounds = images;
+        const existingFiles = new Set(images.map(x => x.filename));
+        for (const selectedFile of selectedSystemBackgroundFiles) {
+            if (!existingFiles.has(selectedFile)) {
+                selectedSystemBackgroundFiles.delete(selectedFile);
+            }
+        }
 
         // Load folders first so getFilteredImages() works correctly in folder view
         await loadFolders();
@@ -859,6 +880,7 @@ function onFolderDrillIn(folderId) {
     const folder = folderList.find(f => f.id === folderId);
     if (!folder) return;
 
+    clearBackgroundGroupSelection();
     activeFolderId = folderId;
     $('#Backgrounds').addClass('in-folder-view');
 
@@ -876,6 +898,7 @@ function onFolderDrillIn(folderId) {
  * Returns to the root folder overview.
  */
 function onBackToFolders() {
+    clearBackgroundGroupSelection();
     activeFolderId = null;
     $('#Backgrounds').removeClass('in-folder-view');
 
@@ -887,6 +910,245 @@ function onBackToFolders() {
     // Show all images
     renderSystemBackgrounds(getFilteredImages());
     highlightSelectedBackground();
+}
+
+/**
+ * Refreshes click-to-select and group action UI state.
+ */
+function syncGroupSelectionUi() {
+    const selectedCount = selectedSystemBackgroundFiles.size;
+    const isGlobalTab = getActiveBackgroundTab() === BG_SOURCES.GLOBAL;
+    const showAddButton = isGlobalTab && isBackgroundSelectionMode && selectedCount > 0;
+    const showRemoveFromCurrentFolderButton = isGlobalTab && Boolean(activeFolderId) && isBackgroundSelectionMode && selectedCount > 0;
+
+    $('#Backgrounds').toggleClass('bg-selection-mode', isBackgroundSelectionMode);
+    $('#bg_selection_mode_button').toggleClass('active', isBackgroundSelectionMode);
+    $('#bg_group_select_count').text(selectedCount > 0 ? ` (${selectedCount})` : '').toggle(selectedCount > 0);
+
+    $('#bg_group_add_to_folder_button').toggle(showAddButton);
+    $('#bg_folder_remove_selected_button').toggle(showRemoveFromCurrentFolderButton);
+
+    $('#bg_menu_content .bg_example').each(function () {
+        const bgFile = String($(this).attr('bgfile') || '');
+        $(this).toggleClass('folder-group-selected', selectedSystemBackgroundFiles.has(bgFile));
+    });
+}
+
+/**
+ * Enables/disables click-to-select mode for system backgrounds.
+ * @param {boolean} enabled
+ */
+function setBackgroundSelectionMode(enabled) {
+    isBackgroundSelectionMode = enabled;
+    if (!enabled) {
+        selectedSystemBackgroundFiles.clear();
+    }
+    // Clear any open mobile menus
+    $('#bg_menu_content .bg_example.mobile-menu-open').removeClass('mobile-menu-open');
+    syncGroupSelectionUi();
+}
+
+/**
+ * Toggles selected state of a system background for group folder actions.
+ * @param {string} bgFile
+ */
+function toggleBackgroundGroupSelection(bgFile) {
+    if (!bgFile) return;
+    if (selectedSystemBackgroundFiles.has(bgFile)) {
+        selectedSystemBackgroundFiles.delete(bgFile);
+    } else {
+        selectedSystemBackgroundFiles.add(bgFile);
+    }
+    syncGroupSelectionUi();
+}
+
+/**
+ * Clears all selected system backgrounds for group folder actions.
+ */
+function clearBackgroundGroupSelection() {
+    selectedSystemBackgroundFiles.clear();
+    syncGroupSelectionUi();
+}
+
+/**
+ * Updates selection/folder action control visibility for the active tab.
+ */
+function updateGroupFolderControlsVisibility() {
+    const isGlobalTab = getActiveBackgroundTab() === BG_SOURCES.GLOBAL;
+    $('#bg_selection_mode_button').toggle(isGlobalTab);
+
+    if (!isGlobalTab && isBackgroundSelectionMode) {
+        setBackgroundSelectionMode(false);
+        return;
+    }
+    syncGroupSelectionUi();
+}
+
+/**
+ * Shows a folder selection popup and returns the selected folder id.
+ * @param {string} headingText
+ * @returns {Promise<string[]|null>} Array of selected folder IDs, or null if cancelled
+ */
+async function selectFoldersForGroupAction(headingText) {
+    if (folderList.length === 0) {
+        toastr.info(t`Create a folder first`);
+        return null;
+    }
+
+    const contentEl = document.createElement('div');
+    const heading = document.createElement('h3');
+    heading.textContent = headingText;
+    contentEl.appendChild(heading);
+
+    for (const folder of folderList) {
+        const label = document.createElement('label');
+        label.className = 'checkbox_label flexGap5';
+        label.style.margin = '4px 0';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.dataset.folderId = folder.id;
+
+        const span = document.createElement('span');
+        span.textContent = folder.name;
+
+        label.appendChild(checkbox);
+        label.appendChild(span);
+        contentEl.appendChild(label);
+    }
+
+    const content = $(contentEl);
+    const result = await callGenericPopup(content, POPUP_TYPE.CONFIRM, '', {
+        okButton: t`Apply`,
+        cancelButton: t`Cancel`,
+        allowVerticalScrolling: true,
+        leftAlign: true,
+    });
+    if (!result) return null;
+
+    const selectedIds = [];
+    content.find('input[type="checkbox"]:checked').each(function () {
+        selectedIds.push($(this).data('folderId'));
+    });
+    return selectedIds.length > 0 ? selectedIds : null;
+}
+
+/**
+ * Sends a folder assign/unassign request and updates local imageFolderMap state.
+ * @param {string[]} bgFiles - Background filenames to update
+ * @param {string} folderId - Target folder ID
+ * @param {boolean} isRemove - Whether to remove (unassign) or add (assign)
+ */
+async function updateFolderAssignments(bgFiles, folderId, isRemove) {
+    const paths = bgFiles.map(getBackgroundRelativePath);
+    const endpoint = isRemove ? '/api/image-metadata/folders/unassign' : '/api/image-metadata/folders/assign';
+
+    const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: getRequestHeaders(),
+        body: JSON.stringify({ id: folderId, paths }),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Folder ${isRemove ? 'unassign' : 'assign'} failed: ${response.status}`);
+    }
+
+    for (const bgFile of bgFiles) {
+        const currentFolderIds = imageFolderMap[bgFile] || [];
+        if (isRemove) {
+            const nextFolderIds = currentFolderIds.filter(id => id !== folderId);
+            if (nextFolderIds.length > 0) {
+                imageFolderMap[bgFile] = nextFolderIds;
+            } else {
+                delete imageFolderMap[bgFile];
+            }
+        } else if (!currentFolderIds.includes(folderId)) {
+            imageFolderMap[bgFile] = [...currentFolderIds, folderId];
+        }
+    }
+}
+
+/**
+ * Adds selected system backgrounds to a chosen folder.
+ */
+async function onAddSelectedToFolder() {
+    if (getActiveBackgroundTab() !== BG_SOURCES.GLOBAL) {
+        toastr.warning(t`Folder actions are only available in the Global tab`);
+        return;
+    }
+
+    const bgFiles = Array.from(selectedSystemBackgroundFiles);
+    if (bgFiles.length === 0) {
+        toastr.info(t`Select one or more backgrounds first`);
+        return;
+    }
+
+    const folderIds = await selectFoldersForGroupAction(t`Add selected backgrounds to folders`);
+    if (!folderIds) return;
+
+    try {
+        let totalAdded = 0;
+        for (const folderId of folderIds) {
+            const actionableBgFiles = bgFiles.filter(bgFile => {
+                const currentFolderIds = imageFolderMap[bgFile] || [];
+                return !currentFolderIds.includes(folderId);
+            });
+            if (actionableBgFiles.length > 0) {
+                await updateFolderAssignments(actionableBgFiles, folderId, false);
+                totalAdded += actionableBgFiles.length;
+            }
+        }
+
+        renderFolderGrid();
+
+        if (activeFolderId) {
+            renderSystemBackgrounds(getFilteredImages());
+            highlightSelectedBackground();
+        }
+
+        setBackgroundSelectionMode(false);
+        if (totalAdded > 0) {
+            toastr.success(t`Added backgrounds to ${folderIds.length} folder(s)`);
+        } else {
+            toastr.info(t`Selected backgrounds are already in the chosen folders`);
+        }
+    } catch (error) {
+        console.error('Error adding selected backgrounds to folder:', error);
+        toastr.error(t`Failed to update folder assignment`);
+    }
+}
+
+/**
+ * Removes selected system backgrounds from the currently drilled-in folder.
+ */
+async function onRemoveSelectedFromCurrentFolder() {
+    if (getActiveBackgroundTab() !== BG_SOURCES.GLOBAL) {
+        toastr.warning(t`Folder actions are only available in the Global tab`);
+        return;
+    }
+
+    if (!activeFolderId) {
+        toastr.info(t`Open a folder first`);
+        return;
+    }
+
+    const bgFiles = Array.from(selectedSystemBackgroundFiles);
+    if (bgFiles.length === 0) {
+        toastr.info(t`Select one or more backgrounds first`);
+        return;
+    }
+
+    try {
+        await updateFolderAssignments(bgFiles, activeFolderId, true);
+        renderFolderGrid();
+        renderSystemBackgrounds(getFilteredImages());
+        highlightSelectedBackground();
+        setBackgroundSelectionMode(false);
+        toastr.success(t`Removed ${bgFiles.length} background(s) from folder`);
+    } catch (error) {
+        console.error('Error removing selected backgrounds from current folder:', error);
+        toastr.error(t`Failed to update folder assignment`);
+    }
 }
 
 /**
@@ -1037,40 +1299,12 @@ async function onAssignToFolder(bgFile) {
         if (!isChecked && wasChecked) toUnassign.push(fid);
     });
 
-    const relativePath = getBackgroundRelativePath(bgFile);
-
     try {
         for (const fid of toAssign) {
-            const resp = await fetch('/api/image-metadata/folders/assign', {
-                method: 'POST',
-                headers: getRequestHeaders(),
-                body: JSON.stringify({ id: fid, paths: [relativePath] }),
-            });
-            if (!resp.ok) throw new Error(`Assign to folder ${fid} failed: ${resp.status}`);
+            await updateFolderAssignments([bgFile], fid, false);
         }
         for (const fid of toUnassign) {
-            const resp = await fetch('/api/image-metadata/folders/unassign', {
-                method: 'POST',
-                headers: getRequestHeaders(),
-                body: JSON.stringify({ id: fid, paths: [relativePath] }),
-            });
-            if (!resp.ok) throw new Error(`Unassign from folder ${fid} failed: ${resp.status}`);
-        }
-
-        // Update local state
-        const newFolderIds = folderList
-            .filter(f => {
-                const wasIn = currentFolderIds.includes(f.id);
-                if (toAssign.includes(f.id)) return true;
-                if (toUnassign.includes(f.id)) return false;
-                return wasIn;
-            })
-            .map(f => f.id);
-
-        if (newFolderIds.length > 0) {
-            imageFolderMap[bgFile] = newFolderIds;
-        } else {
-            delete imageFolderMap[bgFile];
+            await updateFolderAssignments([bgFile], fid, true);
         }
 
         renderFolderGrid();
@@ -1449,7 +1683,11 @@ const debouncedOnBackgroundFilterInput = debounce(onBackgroundFilterInput, debou
  * @returns {BG_SOURCES} Active background tab source
  */
 export function getActiveBackgroundTab() {
-    return $('#bg_tabs').tabs('option', 'active');
+    const tabs = $('#bg_tabs');
+    if (!tabs.length || !tabs.data('ui-tabs')) {
+        return BG_SOURCES.GLOBAL;
+    }
+    return tabs.tabs('option', 'active');
 }
 
 export function initBackgrounds() {
@@ -1511,6 +1749,9 @@ export function initBackgrounds() {
         })
         .off('click', '.jg-button').on('click', '.jg-button', function (e) {
             e.stopPropagation();
+            if (isBackgroundSelectionMode && $(this).closest('#bg_menu_content').length) {
+                return;
+            }
             const action = $(this).data('action');
 
             switch (action) {
@@ -1553,6 +1794,9 @@ export function initBackgrounds() {
         applyThumbnailColumns(background_settings.thumbnailColumns + 1);
     });
     $('#auto_background').on('click', autoBackgroundCommand);
+    $('#bg_selection_mode_button').on('click', () => setBackgroundSelectionMode(!isBackgroundSelectionMode));
+    $('#bg_group_add_to_folder_button').on('click', onAddSelectedToFolder);
+    $('#bg_folder_remove_selected_button').on('click', onRemoveSelectedFromCurrentFolder);
     $('#add_bg_button').on('change', (e) => onBackgroundUploadSelected(e.originalEvent));
     $('#bg-filter').on('input', () => debouncedOnBackgroundFilterInput());
     $('#bg-sort').on('change', function () {
@@ -1615,4 +1859,7 @@ export function initBackgrounds() {
     });
 
     $('#bg_tabs').tabs();
+    $('#bg_tabs').on('tabsactivate', () => updateGroupFolderControlsVisibility());
+    updateGroupFolderControlsVisibility();
+    syncGroupSelectionUi();
 }

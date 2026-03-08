@@ -477,6 +477,7 @@ export const OPENAI_REASONING_EFFORT_MODELS = [
     'gpt-5.2-2025-12-11',
     'gpt-5.2-chat-latest',
     'gpt-5.3-chat-latest',
+    'gpt-5.4',
 ];
 
 export const OPENAI_REASONING_EFFORT_MAP = {

@@ -184,7 +184,7 @@ async function regenerateGroup() {
 
     const abortController = new AbortController();
     setExternalAbortController(abortController);
-    generateGroupWrapper(false, 'normal', { signal: abortController.signal });
+    return generateGroupWrapper(false, 'normal', { signal: abortController.signal });
 }
 
 /**

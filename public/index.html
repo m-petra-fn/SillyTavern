@@ -1982,7 +1982,7 @@
                                             </span>
                                         </div>
                                     </div>
-                                    <div class="range-block" data-source="makersuite,vertexai,aimlapi,openrouter,claude,xai,electronhub,chutes,nanogpt">
+                                    <div class="range-block" data-source="makersuite,vertexai,aimlapi,openrouter,claude,electronhub,chutes,nanogpt">
                                         <label for="openai_enable_web_search" class="checkbox_label flexWrap widthFreeExpand">
                                             <input id="openai_enable_web_search" type="checkbox" />
                                             <span data-i18n="Enable web search">Enable web search</span>
@@ -3028,6 +3028,9 @@
                             <div>
                                 <h4 data-i18n="OpenAI Model">OpenAI Model</h4>
                                 <select id="model_openai_select">
+                                    <optgroup label="GPT-5.4">
+                                        <option value="gpt-5.4">gpt-5.4</option>
+                                    </optgroup>
                                     <optgroup label="GPT-5.3">
                                         <option value="gpt-5.3-chat-latest">gpt-5.3-chat-latest</option>
                                     </optgroup>
@@ -5635,6 +5638,14 @@
                             <a href="#bg_chat_tab" data-i18n="Chat">Chat</a>
                         </li>
                         <div class="heading-controls">
+                            <button id="bg_group_add_to_folder_button" class="menu_button menu_button_icon" style="display:none;" data-i18n="[title]Add selected backgrounds to folder" title="Add selected backgrounds to folder">
+                                <i class="fa-solid fa-folder-tree"></i>
+                                <span data-i18n="Add to Folder">Add to Folder</span>
+                            </button>
+                            <button id="bg_selection_mode_button" class="menu_button menu_button_icon" data-i18n="[title]Select backgrounds for bulk folder actions" title="Select backgrounds for bulk folder actions">
+                                <i class="fa-solid fa-edit"></i>
+                                <span id="bg_group_select_count" style="display:none;"></span>
+                            </button>
                             <button id="bg_thumb_zoom_out" class="menu_button menu_button_icon" title="Make thumbnails smaller" data-i18n="[title]Make thumbnails smaller">
                                 <i class="fa-solid fa-minus"></i>
                             </button>
@@ -5650,6 +5661,11 @@
                                 <span data-i18n="Back">Back</span>
                             </button>
                             <span id="bg_current_folder_name" class="bg_current_folder_name"></span>
+                            <span class="expander"></span>
+                            <button id="bg_folder_remove_selected_button" class="menu_button menu_button_icon" style="display:none;" data-i18n="[title]Remove selected backgrounds from this folder" title="Remove selected backgrounds from this folder">
+                                <i class="fa-solid fa-folder-minus"></i>
+                                <span data-i18n="Remove from Folder">Remove from Folder</span>
+                            </button>
                         </div>
                         <div id="bg_folder_grid" class="bg_list bg_folder_grid"></div>
                         <div id="bg_menu_content" class="bg_list"></div>
