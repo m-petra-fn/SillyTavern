@@ -337,6 +337,8 @@
     "koboldcpp API key (optional)": "koboldcpp API キー (オプション)",
     "Example: http://127.0.0.1:5001": "例: http://127.0.0.1:5001",
     "Authorize": "承認",
+    "OpenRouter API key already exists": "OpenRouter API キーは既に存在します",
+    "Do you really wish to create a new OpenRouter key? Your existing key will not be deleted.": "新しい OpenRouter キーを作成してもよろしいですか?既存のキーは削除されません。",
     "Get your OpenRouter API token using OAuth flow. You will be redirected to openrouter.ai": "OAuthフローを使用してOpenRouter APIトークンを取得します。 openrouter.aiにリダイレクトされます",
     "Bypass status check": "ステータスのチェックをバイパスする",
     "Chat Completion Source": "チャット補完ソース",

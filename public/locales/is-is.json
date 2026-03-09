@@ -335,6 +335,8 @@
     "koboldcpp API key (optional)": "koboldcpp API lykill (valfrjálst)",
     "Example: http://127.0.0.1:5001": "Dæmi: http://127.0.0.1:5001",
     "Authorize": "Heimild",
+    "OpenRouter API key already exists": "OpenRouter API lykill er þegar til",
+    "Do you really wish to create a new OpenRouter key? Your existing key will not be deleted.": "Viltu virkilega búa til nýjan OpenRouter lykil? Núverandi lykill þinn verður ekki eytt.",
     "Get your OpenRouter API token using OAuth flow. You will be redirected to openrouter.ai": "Fáðu API lykilinn þinn fyrir OpenRouter með því að nota OAuth strauminn. Þú verður endurvísað(ð/ur) á openrouter.ai",
     "Bypass status check": "Hlaupa framhjá stöðutík",
     "Chat Completion Source": "Heimild að fullvirkni spjalls",

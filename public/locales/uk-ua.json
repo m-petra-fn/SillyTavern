@@ -335,6 +335,8 @@
     "koboldcpp API key (optional)": "API-ключ koboldcpp (необов’язково)",
     "Example: http://127.0.0.1:5001": "Приклад: http://127.0.0.1:5001",
     "Authorize": "Авторизувати",
+    "OpenRouter API key already exists": "API ключ OpenRouter вже існує",
+    "Do you really wish to create a new OpenRouter key? Your existing key will not be deleted.": "Ви дійсно бажаєте створити новий ключ OpenRouter API? Ваш існуючий ключ не буде видалено.",
     "Get your OpenRouter API token using OAuth flow. You will be redirected to openrouter.ai": "Отримайте свій токен API OpenRouter за допомогою OAuth. Вас буде перенаправлено на openrouter.ai",
     "Bypass status check": "Обійти перевірку статусу",
     "Chat Completion Source": "Джерело Chat Completion",

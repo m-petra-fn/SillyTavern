@@ -335,6 +335,8 @@
     "koboldcpp API key (optional)": "Key API koboldcpp (tùy chọn)",
     "Example: http://127.0.0.1:5001": "Ví dụ: http://127.0.0.1:5001",
     "Cho phép": "Ủy quyền",
+    "OpenRouter API key already exists": "Key API OpenRouter đã tồn tại",
+    "Do you really wish to create a new OpenRouter key? Your existing key will not be deleted.": "Bạn có thực sự muốn tạo khóa OpenRouter mới không? Khóa hiện có của bạn sẽ không bị xóa.",
     "Get your OpenRouter API token using OAuth flow. You will be redirected to openrouter.ai": "Nhận mã thông báo API OpenRouter của bạn bằng cách sử dụng luồng OAuth. Bạn sẽ được chuyển hướng đến openrouter.ai",
     "Bypass status check": "Bỏ qua check trạng thái",
     "Chat Completion Source": "Nguồn cho Chat Completion",

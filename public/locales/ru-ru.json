@@ -758,6 +758,8 @@
     "Doesn't work? Try adding": "Не работает? Попробуйте добавить в конце",
     "at the end!": "!",
     "Authorize": "Авторизоваться",
+    "OpenRouter API key already exists": "Ключ API OpenRouter уже существует",
+    "Do you really wish to create a new OpenRouter key? Your existing key will not be deleted.": "Вы действительно хотите создать новый ключ OpenRouter? Ваш существующий ключ не будет удален.",
     "No persona description": "[Нет описания]",
     "Not connected to API!": "Нет соединения с API!",
     "Type a message, or /? for help": "Введите сообщение, или /? для получения справки",

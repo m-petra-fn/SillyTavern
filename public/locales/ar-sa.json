@@ -337,6 +337,8 @@
     "koboldcpp API key (optional)": "مفتاح koboldcpp API (اختياري)",
     "Example: http://127.0.0.1:5001": "مثال: http://127.0.0.1:5001",
     "Authorize": "تفويض",
+    "OpenRouter API key already exists": "مفتاح API OpenRouter موجود بالفعل",
+    "Do you really wish to create a new OpenRouter key? Your existing key will not be deleted.": "هل تريد حقاً إنشاء مفتاح OpenRouter جديد؟ لن يتم حذف مفتاحك الموجود.",
     "Get your OpenRouter API token using OAuth flow. You will be redirected to openrouter.ai": "احصل على رمز واجهة برمجة التطبيقات الخاص بك لموزع الاتصالات باستخدام تدفق OAuth. سيتم توجيهك إلى openrouter.ai",
     "Bypass status check": "تجاوز فحص الحالة",
     "Chat Completion Source": "مصدر استكمال الدردشة",
