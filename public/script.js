@@ -5889,34 +5889,60 @@ function addChatsSeparator(mesSendString) {
     }
 }
 
-export async function duplicateCharacter() {
-    if (this_chid === undefined || !characters[this_chid]) {
-        toastr.warning(t`You must first select a character to duplicate!`);
-        return '';
+/**
+ * Duplicates a character.
+ * @param {object} [options={}] - Options
+ * @param {string} [options.avatar] - Avatar key of the character to duplicate. Uses current character if not provided.
+ * @param {boolean} [options.silent=false] - Whether to skip the confirmation popup
+ * @returns {Promise<string>} The avatar key of the duplicated character, or empty string if cancelled/failed
+ */
+export async function duplicateCharacter({ avatar = null, silent = false } = {}) {
+    // Determine the character to duplicate
+    let targetAvatar;
+    if (avatar) {
+        const character = characters.find(c => c.avatar === avatar);
+        if (!character) {
+            toastr.warning(t`Character not found: ${avatar}`);
+            return '';
+        }
+        targetAvatar = avatar;
+    } else {
+        if (this_chid === undefined || !characters[this_chid]) {
+            toastr.warning(t`You must first select a character to duplicate!`);
+            return '';
+        }
+        targetAvatar = characters[this_chid].avatar;
     }
 
-    const confirmMessage = $(await renderTemplateAsync('duplicateConfirm'));
-    const confirm = await callGenericPopup(confirmMessage, POPUP_TYPE.CONFIRM);
+    // Show confirmation unless silent
+    if (!silent) {
+        const confirmMessage = $(await renderTemplateAsync('duplicateConfirm'));
+        const confirm = await callGenericPopup(confirmMessage, POPUP_TYPE.CONFIRM);
 
-    if (!confirm) {
-        console.log('User cancelled duplication');
-        return '';
+        if (!confirm) {
+            console.log('User cancelled duplication');
+            return '';
+        }
     }
 
-    const body = { avatar_url: characters[this_chid].avatar };
+    const body = { avatar_url: targetAvatar };
     const response = await fetch('/api/characters/duplicate', {
         method: 'POST',
         headers: getRequestHeaders(),
         body: JSON.stringify(body),
     });
-    if (response.ok) {
-        toastr.success(t`Character Duplicated`);
-        const data = await response.json();
-        await eventSource.emit(event_types.CHARACTER_DUPLICATED, { oldAvatar: body.avatar_url, newAvatar: data.path });
-        await getCharacters();
+
+    if (!response.ok) {
+        toastr.error(t`Failed to duplicate character`);
+        return '';
     }
 
-    return '';
+    toastr.success(t`Character Duplicated`);
+    const data = await response.json();
+    await eventSource.emit(event_types.CHARACTER_DUPLICATED, { oldAvatar: targetAvatar, newAvatar: data.path });
+    await getCharacters();
+
+    return data.path;
 }
 
 function setInContextMessages(msgInContextCount, type) {
@@ -7335,29 +7361,26 @@ async function read_avatar_load(input) {
         }
 
         await createOrEditCharacter();
-        await delay(DEFAULT_SAVE_EDIT_TIMEOUT);
 
         const formData = new FormData(/** @type {HTMLFormElement} */($('#form_create').get(0)));
-        await fetch(getThumbnailUrl('avatar', formData.get('avatar_url').toString()), {
-            method: 'GET',
-            cache: 'reload',
-        });
+        const avatarKey = formData.get('avatar_url').toString();
 
-        const messages = $('.mes').toArray();
-        for (const el of messages) {
-            const $el = $(el);
-            const nameMatch = $el.attr('ch_name') == formData.get('ch_name');
-            if ($el.attr('is_system') == 'true' && !nameMatch) continue;
-            if ($el.attr('is_user') == 'true') continue;
+        // Bust cache for the avatar thumbnail and character image
+        const thumbnailUrl = getThumbnailUrl('avatar', avatarKey);
+        await fetch(thumbnailUrl, { method: 'GET', cache: 'reload' });
+        await fetch(`/characters/${avatarKey}`, { method: 'GET', cache: 'reload' });
 
-            if (nameMatch) {
-                const previewSrc = $('#avatar_load_preview').attr('src');
-                const avatar = $el.find('.avatar img');
-                avatar.attr('src', default_avatar);
-                await delay(1);
-                avatar.attr('src', previewSrc);
+        // Refresh all visible avatar images that use this thumbnail URL
+        // This handles messages, character list, and any other place using the thumbnail
+        const avatarImages = document.querySelectorAll(`img[src^="${thumbnailUrl}"]`);
+        for (const img of avatarImages) {
+            if (img instanceof HTMLImageElement) {
+                const originalSrc = img.src;
+                img.src = '';
+                img.src = originalSrc;
             }
         }
+        console.debug(`Refreshed ${avatarImages.length} avatar images for ${avatarKey}`);
 
         console.log('Avatar refreshed');
     }
@@ -10590,7 +10613,7 @@ export async function handleDeleteCharacter(this_chid, delete_chats) {
  * @param {string|string[]} characterKey - The key (avatar) of the character to be deleted
  * @param {Object} [options] - Optional parameters for the deletion
  * @param {boolean} [options.deleteChats=true] - Whether to delete associated chats or not
- * @return {Promise<void>} - A promise that resolves when the character is successfully deleted
+ * @return {Promise<boolean>} - A promise that resolves when the character is successfully deleted
  */
 export async function deleteCharacter(characterKey, { deleteChats = true } = {}) {
     if (!Array.isArray(characterKey)) {
@@ -10604,14 +10627,16 @@ export async function deleteCharacter(characterKey, { deleteChats = true } = {})
             t`Deleting this character will close the chat and you will lose any unsaved messages. Do you want to proceed?`,
         );
         if (!confirmClose) {
-            return;
+            return false;
         }
     }
 
     const closeChatResult = await closeCurrentChat();
     if (!closeChatResult) {
-        return;
+        return false;
     }
+
+    let deleted = false;
 
     for (const key of characterKey) {
         const character = characters.find(x => x.avatar == key);
@@ -10651,9 +10676,11 @@ export async function deleteCharacter(characterKey, { deleteChats = true } = {})
         }
 
         await eventSource.emit(event_types.CHARACTER_DELETED, { id: chid, character: character });
+        deleted = true;
     }
 
     await removeCharacterFromUI();
+    return deleted;
 }
 
 /**
