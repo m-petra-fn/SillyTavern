@@ -361,11 +361,35 @@ toastr.options = {
         // so the toasts still show up inside there.
         fixToastrForDialogs();
     },
-    onShown: function () {
-        // Set tooltip to the notification message
-        $(this).attr('title', t`Tap to close`);
-    },
 };
+
+// Run once during startup
+toastr.subscribe(function (args) {
+    if (args.state !== 'visible') {
+        return;
+    }
+
+    const $container = toastr.getContainer(args.options, false);
+    if (!$container || !$container.length) {
+        return;
+    }
+
+    // toastr has already inserted the element at this point
+    const $toast = args.options.newestOnTop
+        ? $container.children().first()
+        : $container.children().last();
+
+    // Meaning of "clickable":
+    // Interactable unless tapToDismiss was explicitly false
+    const isInteractable = args.options.tapToDismiss !== false;
+    $toast.toggleClass('interactable', isInteractable);
+    if (isInteractable) {
+        $toast.attr('title', t`Tap to close`);
+    } else {
+        $toast.removeAttr('title');
+        $toast.addClass('toast-non-interactable');
+    }
+});
 
 export const characterGroupOverlay = new BulkEditOverlay();
 
@@ -600,8 +624,7 @@ export let recentSwipes = 0;
 export let extension_prompts = {};
 
 export let main_api;// = "kobold";
-/** @type {AbortController} */
-let abortController;
+let abortController = new AbortController();
 
 //css
 var css_send_form_display = $('<div id=send_form></div>').css('display');
@@ -3881,7 +3904,10 @@ export async function generateRawData({ prompt = '', api = null, instructOverrid
 
     // Allow extensions to stop generation before it happens
     const eventAbortController = new AbortController();
-    const abortHook = () => eventAbortController.abort(new Error('Cancelled by extension'));
+    const abortHook = () => {
+        abortController.abort(new Error('Cancelled by stop event'));
+        eventAbortController.abort(new Error('Cancelled by extension'));
+    };
     eventSource.on(event_types.GENERATION_STOPPED, abortHook);
 
     try {
