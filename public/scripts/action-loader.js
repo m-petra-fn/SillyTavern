@@ -1,16 +1,19 @@
 /**
- * Action loader utility - shows loader overlay with stoppable toast notification.
+ * Unified action loader system - shows loader overlay with optional toast notifications.
  * Designed to be flexible and reusable for various long-running operations.
- * Supports stacking multiple loaders - overlay stays single, but toasts can stack.
  *
- * With default arguments, will function as a generation loader / wrapper.
+ * Features:
+ * - Stacking multiple loaders - overlay stays single, but toasts can stack
+ * - Blocking and non-blocking modes
+ * - Stoppable or static toasts
+ * - Class-based handle system for fine-grained control
  *
  * @module action-loader
  */
 
 import { t } from './i18n.js';
 import { stopGeneration } from '../script.js';
-import { showLoader, hideLoader, isLoaderDisplayed } from './loader.js';
+import { Popup, POPUP_RESULT, POPUP_TYPE } from './popup.js';
 
 /**
  * Enum representing the toast display mode for the action loader.
@@ -33,6 +36,7 @@ export const ActionLoaderToastMode = {
  * @property {string} [message='Generating...'] - The message to display in the toast
  * @property {string} [title] - Optional title for the toast notification
  * @property {string} [stopTooltip='Stop'] - Tooltip text for the stop button
+ * @property {HTMLElement|string|null} [overlayContent=null] - Custom content for the overlay (replaces default spinner)
  * @property {(() => void)|null} [onStop=null] - Custom stop handler. If null, calls `stopGeneration()`
  * @property {(() => void)|null} [onHide=null] - Custom hide handler. Called when the loader is hidden (not stopped).
  */
@@ -95,6 +99,7 @@ export class ActionLoaderHandle {
      * @param {string} [options.message='Generating...'] - Message to display in the toast
      * @param {string} [options.title] - Title for the toast notification
      * @param {string} [options.stopTooltip='Stop'] - Tooltip for the stop button
+     * @param {HTMLElement|string|null} [options.overlayContent] - Custom content for the overlay (replaces default spinner)
      * @param {(() => void)|null} [options.onStop] - Custom stop handler
      * @param {(() => void)|null} [options.onHide] - Custom hide handler
      */
@@ -104,6 +109,7 @@ export class ActionLoaderHandle {
         message = t`Generating...`,
         title = '',
         stopTooltip = t`Stop`,
+        overlayContent = null,
         onStop = null,
         onHide = null,
     } = {}) {
@@ -113,13 +119,13 @@ export class ActionLoaderHandle {
         this.#onHide = onHide;
 
         // Warn if non-blocking loader has no toast - it won't be visible to the user
-        if (!blocking && toastMode === ActionLoaderToastMode.NONE) {
+        if (!blocking && toastMode === ActionLoaderToastMode.NONE && !overlayContent) {
             console.warn('[ActionLoader] Non-blocking loader created without a toast. This loader will not be visible to the user.');
         }
 
         // Show the blocking loader overlay if this is the first blocking handle
-        if (blocking && !hasBlockingLoaders() && !isLoaderDisplayed()) {
-            showLoader();
+        if (blocking && !hasBlockingLoaders() && !isOverlayDisplayed()) {
+            showOverlay(overlayContent);
         }
 
         // Register this handle
@@ -191,7 +197,7 @@ export class ActionLoaderHandle {
 
         // Hide the overlay if this was the last blocking handle
         if (this.#blocking && !hasBlockingLoaders()) {
-            await hideLoader();
+            await hideOverlay();
         }
     }
 
@@ -301,6 +307,12 @@ export const loader = {
     get: getLoaderHandleById,
 
     /**
+     * Checks if any blocking loader overlay is currently displayed.
+     * @returns {boolean} True if a blocking overlay is shown
+     */
+    isBlocking: isOverlayDisplayed,
+
+    /**
      * Toast display mode constants.
      * @type {typeof ActionLoaderToastMode}
      */
@@ -311,6 +323,12 @@ export const loader = {
      * @type {typeof ActionLoaderHandle}
      */
     Handle: ActionLoaderHandle,
+
+    /**
+     * Creates a fresh default loader overlay element.
+     * @type {typeof createDefaultLoaderOverlay}
+     */
+    createOverlay: createDefaultLoaderOverlay,
 };
 
 /**
@@ -404,3 +422,145 @@ export function getLoaderHandleById(id) {
     }
     return undefined;
 }
+
+// ============================================================================
+// Internal overlay management
+// ============================================================================
+
+/** @type {Popup|null} The current loader overlay popup */
+let loaderPopup = null;
+
+/** Whether the initial HTML preloader has been removed */
+let preloaderYoinked = false;
+
+/**
+ * Creates the default loader overlay element.
+ * Always returns a fresh element instance.
+ *
+ * @returns {HTMLDivElement} A new loader overlay element
+ */
+export function createDefaultLoaderOverlay() {
+    const loaderElement = document.createElement('div');
+    loaderElement.id = 'loader';
+
+    const spinnerElement = document.createElement('div');
+    spinnerElement.id = 'load-spinner';
+    spinnerElement.className = 'fa-solid fa-gear fa-spin fa-3x';
+
+    loaderElement.appendChild(spinnerElement);
+
+    return loaderElement;
+}
+
+/**
+ * Normalizes custom overlay content into a value supported by Popup.
+ * @param {string|HTMLElement|null} customContent - Custom overlay content
+ * @returns {string|HTMLElement} Content for Popup
+ */
+function getOverlayContent(customContent) {
+    if (typeof customContent === 'string') {
+        return customContent;
+    }
+
+    if (customContent instanceof HTMLElement) {
+        return customContent;
+    }
+
+    return createDefaultLoaderOverlay();
+}
+
+/**
+ * Checks if the loader overlay is currently displayed.
+ * @returns {boolean} True if overlay is shown
+ */
+function isOverlayDisplayed() {
+    return !!loaderPopup;
+}
+
+/**
+ * Shows the blocking loader overlay.
+ * Internal function - use showActionLoader() instead.
+ * @param {HTMLElement|string|null} [customContent] - Custom content for the overlay
+ */
+function showOverlay(customContent = null) {
+    // Two loaders don't make sense. Don't await, we can overlay the old loader while it closes
+    if (loaderPopup) loaderPopup.complete(POPUP_RESULT.CANCELLED);
+
+    const content = getOverlayContent(customContent);
+
+    loaderPopup = new Popup(content, POPUP_TYPE.DISPLAY, null, { transparent: true, animation: 'none', wide: true, large: true });
+
+    // No close button, loaders are not closable
+    loaderPopup.closeButton.style.display = 'none';
+
+    loaderPopup.show();
+}
+
+/**
+ * Hides the blocking loader overlay with animation.
+ * Internal function - use hideActionLoader() instead.
+ * @returns {Promise<void>}
+ */
+async function hideOverlay() {
+    if (!loaderPopup) {
+        return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+        const loaderElement = $('#loader');
+        const spinner = $('#load-spinner');
+
+        if (!loaderElement.length) {
+            console.warn('Loader element not found, skipping animation');
+            cleanup();
+            return;
+        }
+
+        // Check if transitions are enabled on spinner (which has the transition property)
+        const transitionDuration = spinner.length && spinner[0] ? getComputedStyle(spinner[0]).transitionDuration : '0s';
+        const hasTransitions = parseFloat(transitionDuration) > 0;
+
+        if (hasTransitions) {
+            Promise.race([
+                new Promise((r) => setTimeout(r, 500)), // Fallback timeout
+                new Promise((r) => loaderElement.one('transitionend webkitTransitionEnd oTransitionEnd MSTransitionEnd', r)),
+            ]).finally(cleanup);
+        } else {
+            cleanup();
+        }
+
+        function cleanup() {
+            loaderElement.remove();
+            // Yoink preloader entirely; it only exists to cover up unstyled content while loading JS
+            // If it's present, we remove it once and then it's gone.
+            yoinkPreloader();
+
+            loaderPopup.complete(POPUP_RESULT.AFFIRMATIVE)
+                .catch((err) => console.error('Error completing loaderPopup:', err))
+                .finally(() => {
+                    loaderPopup = null;
+                    resolve();
+                });
+        }
+
+        // Apply the blur styles to the entire loader element
+        loaderElement.css({
+            'filter': 'blur(15px)',
+            'opacity': '0',
+        });
+    });
+}
+
+/**
+ * Removes the initial HTML preloader element.
+ * Called once after the first loader hide.
+ */
+function yoinkPreloader() {
+    if (preloaderYoinked) return;
+    document.getElementById('preloader')?.remove();
+    preloaderYoinked = true;
+}
+
+// ============================================================================
+// End internal overlay management
+// ============================================================================
