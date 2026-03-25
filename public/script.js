@@ -3681,7 +3681,16 @@ class StreamingProcessor {
         }
     }
 
-    async onFinishStreaming(messageId, text) {
+    /**
+     * Finalizes an intermediary message after generation is complete, or a tool call is performed.
+     * Performs essential message processing (code blocks, reasoning, swipes, attachments, events)
+     * without the heavier finish operations (UI unlock - optional, auto-swipe, sound, save chat).
+     * @param {number} messageId - The message ID to finalize.
+     * @param {string} text - The message text.
+     * @param {Object} options - Additional options for finalization.
+     * @param {boolean} options.unlockUI - Whether to unlock the generation UI.
+     */
+    async finalizeIntermediaryMessage(messageId, text, { unlockUI = true }) {
         await this.onProgressStreaming(messageId, text, true);
         const messageElement = chatElement.find(`.mes[mesid="${messageId}"]`);
         const message = chat[messageId];
@@ -3720,7 +3729,9 @@ class StreamingProcessor {
             message.extra.reasoning_signature = this.reasoningSignature;
         }
 
-        this.markUIGenStopped();
+        if (unlockUI) {
+            this.markUIGenStopped();
+        }
 
         if (this.type !== 'impersonate') {
             await eventSource.emit(event_types.MESSAGE_RECEIVED, this.messageId, this.type);
@@ -3730,6 +3741,10 @@ class StreamingProcessor {
         }
 
         updateSwipeCounter(messageId, { message, messageElement });
+    }
+
+    async onFinishStreaming(messageId, text) {
+        await this.finalizeIntermediaryMessage(messageId, text, { unlockUI: true });
 
         const isAborted = this.abortController.signal.aborted;
         if (!isAborted && power_user.auto_swipe && generatedTextFiltered(text)) {
@@ -5333,6 +5348,9 @@ export async function Generate(type, { automatic_trigger, force_name2, quiet_pro
                 const hasToolCalls = ToolManager.hasToolCalls(streamingProcessor.toolCalls);
                 const shouldDeleteMessage = type !== 'swipe' && ['', '...'].includes(lastMessage?.mes) && !lastMessage?.extra?.reasoning && ['', '...'].includes(streamingProcessor?.result);
                 hasToolCalls && shouldDeleteMessage && await deleteLastMessage();
+                if (hasToolCalls && !shouldDeleteMessage) {
+                    await streamingProcessor.finalizeIntermediaryMessage(streamingProcessor.messageId, getMessage, { unlockUI: false });
+                }
                 const invocationResult = await ToolManager.invokeFunctionTools(streamingProcessor.toolCalls, {
                     reasoningText: streamingProcessor.reasoningHandler.reasoning,
                 });
