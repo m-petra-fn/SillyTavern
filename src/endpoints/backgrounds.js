@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import sharp from 'sharp';
 
 import express from 'express';
 import sanitize from 'sanitize-filename';
@@ -138,6 +139,32 @@ router.post('/upload', async function (request, response) {
 
         const img_path = path.join(request.file.destination, request.file.filename);
         const filename = sanitize(request.file.originalname);
+
+
+        const ext = path.extname(filename).toLowerCase();
+
+        if (['.jpg', '.jpeg', '.png'].includes(ext)) {
+            const newFilename = filename.replace(/\.[^/.]+$/, '.webp');
+            const destPath = path.join(request.user.directories.backgrounds, newFilename);
+
+            try {
+                // qualidade entre 65-85 é um bom compromisso; reductionEffort 6 é mais lento/compacta melhor
+                await sharp(img_path)
+                    .toFormat('webp', { quality: 80, effort: 6 })
+                    // não chamar .withMetadata() para remover EXIF e reduzir tamanho
+                    .toFile(destPath);
+
+                fs.unlinkSync(img_path);
+                invalidateThumbnail(request.user.directories, 'bg', newFilename);
+                await getOrGenerateMetadataBatch(request.user.directories.root, [path.join('backgrounds', newFilename)], 'bg');
+                return response.send(newFilename);
+            } catch (err) {
+                console.warn('[Backgrounds] WebP conversion failed, falling back to original:', err);
+                // fallback: continue com copy abaixo
+            }
+        }
+
+
         fs.copyFileSync(img_path, path.join(request.user.directories.backgrounds, filename));
         fs.unlinkSync(img_path);
         invalidateThumbnail(request.user.directories, 'bg', filename);
