@@ -389,6 +389,8 @@ async function synchronizeChat(batchSize = 5) {
                     return 'Extras API must provide an "embeddings" module.';
                 case 'webllm_not_supported':
                     return 'WebLLM extension is not installed or the model is not set.';
+                case 'account_id_missing':
+                    return 'Workers AI account ID is required. Save it in the "API Connections" panel.';
                 default:
                     return 'Check server console for more details';
             }
@@ -843,6 +845,10 @@ function getVectorsRequestBody(args = {}) {
             body.model = extension_settings.vectors.siliconflow_model;
             body.siliconflow_endpoint = oai_settings.siliconflow_endpoint;
             break;
+        case 'workers_ai':
+            body.model = extension_settings.vectors.workers_ai_model || '@cf/baai/bge-m3';
+            body.workers_ai_account_id = oai_settings.workers_ai_account_id;
+            break;
         default:
             break;
     }
@@ -936,6 +942,7 @@ function throwIfSourceInvalid() {
         settings.source === 'togetherai' && !secret_state[SECRET_KEYS.TOGETHERAI] ||
         settings.source === 'nomicai' && !secret_state[SECRET_KEYS.NOMICAI] ||
         settings.source === 'cohere' && !secret_state[SECRET_KEYS.COHERE] ||
+        settings.source === 'workers_ai' && !secret_state[SECRET_KEYS.WORKERS_AI] ||
         settings.source === 'siliconflow' && !secret_state[SECRET_KEYS.SILICONFLOW]) {
         throw new Error('Vectors: API key missing', { cause: 'api_key_missing' });
     }
@@ -963,6 +970,10 @@ function throwIfSourceInvalid() {
 
     if (settings.source === 'webllm' && (!isWebLlmSupported() || !settings.webllm_model)) {
         throw new Error('Vectors: WebLLM is not supported', { cause: 'webllm_not_supported' });
+    }
+
+    if (settings.source === 'workers_ai' && !oai_settings.workers_ai_account_id) {
+        throw new Error('Vectors: Workers AI account ID missing', { cause: 'account_id_missing' });
     }
 }
 
@@ -1155,6 +1166,7 @@ function toggleSettings() {
     $('#koboldcpp_vectorsModel').toggle(settings.source === 'koboldcpp');
     $('#google_vectorsModel').toggle(settings.source === 'palm' || settings.source === 'vertexai');
     $('#siliconflow_vectorsModel').toggle(settings.source === 'siliconflow');
+    $('#workers_ai_vectorsModel').toggle(settings.source === 'workers_ai');
     $('#vector_altEndpointUrl').toggle(vectorApiRequiresUrl.includes(settings.source));
     switch (settings.source) {
         case 'webllm':
@@ -1174,6 +1186,9 @@ function toggleSettings() {
             break;
         case 'siliconflow':
             loadSiliconFlowModels();
+            break;
+        case 'workers_ai':
+            loadWorkersAIModels();
             break;
     }
 }
@@ -1360,6 +1375,45 @@ function populateSiliconFlowModelSelect(models) {
         settings.siliconflow_model = models[0].id;
     }
     $('#vectors_siliconflow_model').val(settings.siliconflow_model);
+}
+
+async function loadWorkersAIModels() {
+    try {
+        const response = await fetch('/api/openai/workers-ai/models/embedding', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify({
+                workers_ai_account_id: oai_settings.workers_ai_account_id,
+            }),
+        });
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+        /** @type {Array<any>} */
+        const data = await response.json();
+        const models = Array.isArray(data) ? data : [];
+        populateWorkersAIModelSelect(models);
+    } catch (err) {
+        console.warn('Workers AI models fetch failed', err);
+        populateWorkersAIModelSelect([]);
+    }
+}
+
+function populateWorkersAIModelSelect(models) {
+    const select = $('#vectors_workers_ai_model');
+    select.empty();
+    for (const m of models) {
+        const option = document.createElement('option');
+        option.value = m.id;
+        option.text = m.id;
+        select.append(option);
+    }
+    if (!settings.workers_ai_model && models.length) {
+        settings.workers_ai_model = models[0].id;
+        Object.assign(extension_settings.vectors, settings);
+        saveSettingsDebounced();
+    }
+    $('#vectors_workers_ai_model').val(settings.workers_ai_model);
 }
 
 /**
@@ -1782,6 +1836,11 @@ jQuery(async () => {
     });
     $('#vectors_siliconflow_model').val(settings.siliconflow_model).on('change', () => {
         settings.siliconflow_model = String($('#vectors_siliconflow_model').val());
+        Object.assign(extension_settings.vectors, settings);
+        saveSettingsDebounced();
+    });
+    $('#vectors_workers_ai_model').val(settings.workers_ai_model).on('change', () => {
+        settings.workers_ai_model = String($('#vectors_workers_ai_model').val());
         Object.assign(extension_settings.vectors, settings);
         saveSettingsDebounced();
     });
