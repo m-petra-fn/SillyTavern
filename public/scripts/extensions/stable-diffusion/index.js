@@ -1815,6 +1815,34 @@ async function loadAutoSamplers() {
     }
 }
 
+async function loadSdcppModels() {
+    if (!extension_settings.sd.sdcpp_url) {
+        return [{ value: '', text: 'N/A' }];
+    }
+
+    try {
+        const result = await fetch('/api/sd/sdcpp/models', {
+            method: 'POST',
+            headers: getRequestHeaders(),
+            body: JSON.stringify({ url: extension_settings.sd.sdcpp_url }),
+        });
+
+        if (!result.ok) {
+            return [{ value: '', text: 'N/A' }];
+        }
+
+        const data = await result.json();
+
+        if (data?.data?.length > 0) {
+            return data.data.map(model => ({ value: model.id, text: model.name || model.id }));
+        }
+    } catch (error) {
+        console.error('Failed to load sd.cpp models:', error);
+    }
+
+    return [{ value: '', text: 'N/A' }];
+}
+
 async function loadSdcppSamplers() {
     // The sdcpp server does not provide an API for samplers, so we return the known list.
     return ['euler', 'euler_a', 'heun', 'dpm2', 'dpm++2s_a', 'dpm++2m', 'dpm++2mv2', 'ipndm', 'ipndm_v', 'lcm', 'ddim_trailing', 'tcd'];
@@ -1910,7 +1938,7 @@ async function loadModels() {
             models = await loadAutoModels();
             break;
         case sources.sdcpp:
-            models = [{ value: '', text: 'N/A' }];
+            models = await loadSdcppModels();
             break;
         case sources.drawthings:
             models = await loadDrawthingsModels();
@@ -3858,6 +3886,7 @@ async function generateAutoImage(prompt, negativePrompt, signal) {
 async function generateSdcppImage(prompt, negativePrompt, signal) {
     const payload = {
         url: extension_settings.sd.sdcpp_url,
+        model: extension_settings.sd.model || undefined,
         prompt: prompt,
         negative_prompt: negativePrompt,
         steps: extension_settings.sd.steps,
@@ -5441,7 +5470,7 @@ function registerFunctionTool() {
     });
 }
 
-jQuery(async () => {
+export async function init() {
     await addSDGenButtons();
 
     const getSelectEnumProvider = (id, text) => () => Array.from(document.querySelectorAll(`#${id} > [value]`)).map(x => new SlashCommandEnumValue(x.getAttribute('value'), text ? x.textContent : null));
@@ -5948,4 +5977,4 @@ jQuery(async () => {
             t`Character's negative Image Generation prompt prefix`,
         );
     }
-});
+}
