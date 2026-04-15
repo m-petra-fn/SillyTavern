@@ -5,7 +5,6 @@ import express from 'express';
 import fetch from 'node-fetch';
 import sanitize from 'sanitize-filename';
 import { sync as writeFileAtomicSync } from 'write-file-atomic';
-import FormData from 'form-data';
 import urlJoin from 'url-join';
 import _ from 'lodash';
 import mime from 'mime-types';
@@ -2031,6 +2030,145 @@ zai.post('/generate-video', async (request, response) => {
     }
 });
 
+const workersai = express.Router();
+
+workersai.post('/models', async (request, response) => {
+    try {
+        const key = readSecret(request.user.directories, SECRET_KEYS.WORKERS_AI);
+
+        if (!key) {
+            console.warn('Cloudflare Workers AI API key not found.');
+            return response.sendStatus(400);
+        }
+
+        const accountId = String(request.body.account_id || '').trim();
+        if (!accountId) {
+            console.warn('Cloudflare Workers AI Account ID not found.');
+            return response.sendStatus(400);
+        }
+
+        const apiUrl = new URL(`https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/models/search`);
+        apiUrl.searchParams.set('task', 'Text-to-Image');
+        apiUrl.searchParams.set('per_page', '1000');
+        const result = await fetch(apiUrl, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${key}`,
+            },
+        });
+
+        if (!result.ok) {
+            console.warn('Cloudflare Workers AI returned an error.', result.statusText);
+            return response.sendStatus(500);
+        }
+
+        /** @type {any} */
+        const data = await result.json();
+
+        if (!data.success || !Array.isArray(data.result)) {
+            console.warn('Cloudflare Workers AI returned invalid data.');
+            return response.sendStatus(500);
+        }
+
+        const models = data.result.map(x => ({ value: x.name, text: x.name }));
+        return response.send(models);
+    } catch (error) {
+        console.error(error);
+        return response.sendStatus(500);
+    }
+});
+
+workersai.post('/generate', async (request, response) => {
+    try {
+        const key = readSecret(request.user.directories, SECRET_KEYS.WORKERS_AI);
+
+        if (!key) {
+            console.warn('Cloudflare Workers AI API key not found.');
+            return response.sendStatus(400);
+        }
+
+        const accountId = String(request.body.account_id || '').trim();
+        if (!accountId) {
+            console.warn('Cloudflare Workers AI Account ID not found.');
+            return response.sendStatus(400);
+        }
+
+        const model = String(request.body.model || '').trim();
+        if (!model) {
+            console.warn('Cloudflare Workers AI model not specified.');
+            return response.sendStatus(400);
+        }
+
+        const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/run/${model}`;
+
+        const body = {
+            prompt: request.body.prompt,
+            negative_prompt: request.body.negative_prompt || undefined,
+            width: request.body.width ? Number(request.body.width) : undefined,
+            height: request.body.height ? Number(request.body.height) : undefined,
+            num_steps: request.body.steps ? Number(request.body.steps) : undefined,
+            guidance: request.body.scale ? Number(request.body.scale) : undefined,
+            seed: request.body.seed >= 0 ? Number(request.body.seed) : undefined,
+        };
+
+        // Remove undefined values
+        for (const prop of Object.keys(body)) {
+            if (body[prop] === undefined) {
+                delete body[prop];
+            }
+        }
+
+        console.debug('Cloudflare Workers AI request:', model, body);
+
+        /** @type {import('node-fetch').RequestInit} */
+        const apiRequest = {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${key}`,
+            },
+        };
+
+        if (/flux-2/.test(model)) {
+            const formData = new FormData();
+            for (const [key, value] of Object.entries(body)) {
+                formData.append(key, String(value));
+            }
+            apiRequest.body = formData;
+        } else {
+            apiRequest.headers = { ...apiRequest.headers, 'Content-Type': 'application/json' };
+            apiRequest.body = JSON.stringify(body);
+        }
+
+        const result = await fetch(apiUrl, apiRequest);
+        if (!result.ok) {
+            const text = await result.text();
+            console.warn('Cloudflare Workers AI returned an error.', result.status, result.statusText, text);
+            return response.status(500).send(text);
+        }
+
+        const contentType = result.headers.get('content-type') || '';
+
+        // Partner models return JSON with base64 image
+        if (contentType.includes('application/json')) {
+            /** @type {any} */
+            const data = await result.json();
+            const image = data?.result?.image || data?.image;
+            if (!image) {
+                console.warn('Cloudflare Workers AI returned JSON without image data.');
+                return response.sendStatus(500);
+            }
+            return response.send({ format: 'png', image: image });
+        }
+
+        // Non-partner models return raw binary image data
+        const buffer = await result.arrayBuffer();
+        return response.send({ format: 'png', image: Buffer.from(buffer).toString('base64') });
+    } catch (error) {
+        console.error(error);
+        return response.sendStatus(500);
+    }
+});
+
 router.use('/comfy', comfy);
 router.use('/comfyrunpod', comfyRunPod);
 router.use('/together', together);
@@ -2047,3 +2185,4 @@ router.use('/falai', falai);
 router.use('/xai', xai);
 router.use('/aimlapi', aimlapi);
 router.use('/zai', zai);
+router.use('/workersai', workersai);
