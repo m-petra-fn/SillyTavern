@@ -1908,17 +1908,32 @@ export function messageFormatting(mes, ch_name, isSystem, isUser, messageId, san
 }
 
 /**
+ * Creates an Image element for the given API/model icon.
+ * The image references the matching SVG file from `/img/` and includes a tooltip with API and model info.
+ * The caller is responsible for appending the image to the DOM and optionally calling `SVGInject` on it.
+ *
+ * @param {string} apiName - API identifier matching an SVG file in /img/ (e.g. 'openai', 'openrouter', 'claude')
+ * @param {string} [modelName=''] - Model name shown in the tooltip
+ * @returns {HTMLImageElement} The image element (not yet in the DOM)
+ */
+export function createModelIcon(apiName, modelName = '') {
+    const image = new Image();
+    image.classList.add('icon-svg');
+    image.src = `/img/${apiName}.svg`;
+    image.title = modelName ? `${apiName} - ${modelName}` : apiName;
+    return image;
+}
+
+/**
  * Inserts or replaces an SVG icon adjacent to the provided message's timestamp.
  *
  * @param {JQuery<HTMLElement>} mes - The message element containing the timestamp where the icon should be inserted or replaced.
  * @param {ChatMessageExtra} extra - Contains the API and model details.
  */
 function insertSVGIcon(mes, extra) {
-    // Determine the SVG filename
-    let modelName = extra?.api || '';
+    const apiName = extra?.api || '';
 
-    // If there's no API information, we can't determine which SVG to use
-    if (!modelName) {
+    if (!apiName) {
         return;
     }
 
@@ -1935,16 +1950,14 @@ function insertSVGIcon(mes, extra) {
         };
     };
 
-    const createModelImage = (className, targetSelector, insertBefore) => {
-        const image = new Image();
-        image.classList.add('icon-svg', className);
-        image.src = `/img/${modelName}.svg`;
-        image.title = `${extra?.api ? extra.api + ' - ' : ''}${extra?.model ?? ''}`;
+    const insertIcon = (className, targetSelector, insertBefore) => {
+        const image = createModelIcon(apiName, extra?.model);
+        image.classList.add(className);
         insertOrReplaceSVG(image, className, targetSelector, insertBefore);
     };
 
-    createModelImage('timestamp-icon', '.timestamp');
-    createModelImage('thinking-icon', '.mes_reasoning_header_title', true);
+    insertIcon('timestamp-icon', '.timestamp');
+    insertIcon('thinking-icon', '.mes_reasoning_header_title', true);
 }
 
 /**
@@ -4726,7 +4739,7 @@ export async function Generate(type, { automatic_trigger, force_name2, quiet_pro
             chat2[i] = formatMessageHistoryItem(coreChat[j], isInstruct, force_output_sequence.FIRST);
         }
 
-        if (lastUserMessageIndex >= 0 && j === lastUserMessageIndex && isInstruct) {
+        if (lastUserMessageIndex >= 0 && j === lastUserMessageIndex && isInstruct && !isImpersonate) {
             // Reformat with the last input sequence (if any)
             chat2[i] = formatMessageHistoryItem(coreChat[j], isInstruct, force_output_sequence.LAST);
         }
@@ -6038,7 +6051,7 @@ function setInContextMessages(msgInContextCount, type) {
 
     if (lastMessageBlock.length === 0) {
         const firstMessageId = getFirstDisplayedMessageId();
-        chatElement.find(`.mes[mesid="${firstMessageId}"`).addClass('lastInContext');
+        chatElement.find(`.mes[mesid="${firstMessageId}"]`).addClass('lastInContext');
     }
 
     // Update last id to chat. No metadata save on purpose, gets hopefully saved via another call

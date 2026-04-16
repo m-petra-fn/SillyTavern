@@ -257,6 +257,7 @@ export const tool_reasoning_modes = {
 // Providers that support interleaved reasoning forwarding in tool-call chains.
 const interleaved_reasoning_providers = [
     chat_completion_sources.OPENROUTER,
+    chat_completion_sources.CUSTOM,
 ];
 
 export const ZAI_ENDPOINT = {
@@ -1019,8 +1020,8 @@ async function populateChatHistory(messages, prompts, chatCompletion, type = nul
                 const clone = structuredClone(invocation);
                 if (!reasoningIsEligible) {
                     delete clone.reasoning;
-                } else if (previousAssistantReasoning) {
-                    // Prefer currently editable assistant-text reasoning based on forwarding mode over invocation snapshot.
+                } else if (previousAssistantReasoning && !clone.reasoning) {
+                    // Fall back to adjacent assistant-text reasoning only when the invocation has none of its own.
                     clone.reasoning = previousAssistantReasoning;
                 }
                 return clone;
