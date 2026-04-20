@@ -1906,23 +1906,41 @@ zai.post('/generate', async (request, response) => {
         const data = await generateResponse.json();
         console.debug('Z.AI image response:', data);
 
-        const url = data?.data?.[0]?.url;
-        if (!url || !isValidUrl(url) || !new URL(url).hostname.endsWith('.z.ai')) {
+        const urlString = String(data?.data?.[0]?.url ?? '');
+        if (!urlString || !isValidUrl(urlString)) {
             console.warn('Z.AI returned an invalid image URL.');
             return response.sendStatus(500);
         }
 
-        const imageResponse = await fetch(url);
-        if (!imageResponse.ok) {
-            console.warn('Z.AI image fetch returned an error. Status:', imageResponse.status, imageResponse.statusText);
+        const url = new URL(urlString);
+        if (!url.hostname.endsWith('.z.ai') && !url.hostname.endsWith('.ufileos.com')) {
+            console.warn('Z.AI returned a URL with an unrecognized hostname.');
             return response.sendStatus(500);
         }
 
-        const buffer = await imageResponse.arrayBuffer();
-        const image = Buffer.from(buffer).toString('base64');
-        const format = path.extname(url).substring(1).toLowerCase() || 'png';
+        for (let attempt = 0; attempt < 5; attempt++) {
+            const imageResponse = await fetch(url);
+            if (!imageResponse.ok) {
+                // Sometimes the URL is valid but the image isn't immediately available
+                if (imageResponse.status === 404) {
+                    console.info('Z.AI image not found yet, retrying...', { attempt: attempt + 1 });
+                    await delay(1000);
+                    continue;
+                }
 
-        return response.send({ image, format });
+                console.warn('Z.AI image fetch returned an error. Status:', imageResponse.status, imageResponse.statusText);
+                return response.sendStatus(500);
+            }
+
+            const buffer = await imageResponse.arrayBuffer();
+            const image = Buffer.from(buffer).toString('base64');
+            const format = path.extname(url.pathname).substring(1).toLowerCase() || 'png';
+
+            return response.send({ image, format });
+        }
+
+        console.warn('Z.AI image was not available after multiple attempts.');
+        return response.sendStatus(500);
     } catch (error) {
         console.error(error);
         return response.sendStatus(500);
@@ -2024,6 +2042,8 @@ zai.post('/generate-video', async (request, response) => {
                 return response.send({ format: 'mp4', video: Buffer.from(contentBuffer).toString('base64') });
             }
         }
+        console.warn('Z.AI video was not available after multiple attempts.');
+        return response.sendStatus(500);
     } catch (error) {
         console.error(error);
         return response.sendStatus(500);

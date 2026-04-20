@@ -559,11 +559,11 @@ async function changeMessageTitle(messageId, messageBlock) {
     }
 
     const popupResult = await Popup.show.input(
-            t`Change message title.`,
-            t`<p>Input the text of the title for the message.</p>`,
-            message.name || '',
-            { okButton: 'OK', cancelButton: true },
-        );
+        t`Change message title.`,
+        t`<p>Input the text of the title for the message.</p>`,
+        message.name || '',
+        { okButton: 'OK', cancelButton: true },
+    );
 
     if (popupResult && popupResult.trim() !== message.name) {
         message.name = popupResult.trim();
@@ -2445,7 +2445,7 @@ export function initChatUtilities() {
     });
 
     $(document).on('click', '.secondAvatarImg', function () {
-        if(confirm('Remove second image?')) {
+        if (confirm('Remove second image?')) {
             const messageBlock = $(this).closest('.mes');
             const messageId = Number(messageBlock.attr('mesid'));
             removeSecondImage(messageId, messageBlock);
@@ -2523,11 +2523,14 @@ export function initChatUtilities() {
         await callGenericPopup(wrapper, POPUP_TYPE.TEXT, '', { wide: true, large: true });
     });
 
-    $(document).on('dblclick', 'body .mes .mes_text', function () {
+    $(document).on('dblclick', 'body .mes .mes_text, body .mes .mes_reasoning', function (event) {
         if (!power_user.click_to_edit) return;
         //if (window.getSelection().toString()) return;
         if ($('.edit_textarea').length) return;
         $(this).closest('.mes').find('.mes_edit').trigger('click');
+        if ($(event.target).closest('.mes_reasoning').length) {
+            $('.reasoning_edit_textarea').trigger('focus');
+        }
     });
 
     $(document).on('click', '.open_media_overrides', openExternalMediaOverridesDialog);
