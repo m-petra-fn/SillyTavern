@@ -3224,36 +3224,6 @@
                                 <input id="openrouter_use_fallback" type="checkbox" />
                                 <span data-i18n="Allow fallback models">Allow fallback models</span>
                             </label>
-                            <div class="marginTopBot5">
-                                <div class="inline-drawer wide100p">
-                                    <div class="inline-drawer-toggle inline-drawer-header">
-                                        <b data-i18n="OpenRouter Model Sorting">OpenRouter Model Sorting</b>
-                                        <div class="fa-solid fa-circle-chevron-down inline-drawer-icon down"></div>
-                                    </div>
-                                    <div class="inline-drawer-content m-b-1">
-                                        <div class="marginTopBot5">
-                                            <label for="openrouter_sort_models" class="checkbox_label">
-                                                <select id="openrouter_sort_models">
-                                                    <option data-i18n="Alphabetically" value="alphabetically">Alphabetically</option>
-                                                    <option data-i18n="Price" value="pricing.prompt">Price (cheapest)</option>
-                                                    <option data-i18n="Context Size" value="context_length">Context Size</option>
-                                                </select>
-                                            </label>
-                                        </div>
-                                        <div class="marginTopBot5">
-                                            <label for="openrouter_group_models" class="checkbox_label">
-                                                <input id="openrouter_group_models" type="checkbox" />
-                                                <span data-i18n="Group by vendors">Group by vendors</span>
-                                            </label>
-                                            <div class="toggle-description justifyLeft wide100p">
-                                                <span data-i18n="Group by vendors Description">
-                                                    Put OpenAI models in one group, Anthropic models in other group, etc. Can be combined with sorting.
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                             <div>
                                 <h4>
                                     <span data-i18n="Model Providers">Model Providers</span>
@@ -3641,37 +3611,6 @@
                                     <option value="" data-i18n="-- Connect to the API --">-- Connect to the API --</option>
                                 </select>
                             </div>
-                            <div class="marginTopBot5">
-                                <div class="inline-drawer wide100p">
-                                    <div class="inline-drawer-toggle inline-drawer-header">
-                                        <b data-i18n="Electron Hub Model Sorting">Electron Hub Model Sorting</b>
-                                        <div class="fa-solid fa-circle-chevron-down inline-drawer-icon down"></div>
-                                    </div>
-                                    <div class="inline-drawer-content m-b-1">
-                                        <div class="marginTopBot5">
-                                            <label for="electronhub_sort_models" class="checkbox_label">
-                                                <select id="electronhub_sort_models">
-                                                    <option data-i18n="Alphabetically" value="alphabetically">Alphabetically</option>
-                                                    <option data-i18n="Input Price" value="pricing.input">Input Price (cheapest)</option>
-                                                    <option data-i18n="Output Price" value="pricing.output">Output Price (cheapest)</option>
-                                                    <option data-i18n="Context Size" value="context_length">Context Size</option>
-                                                </select>
-                                            </label>
-                                        </div>
-                                        <div class="marginTopBot5">
-                                            <label for="electronhub_group_models" class="checkbox_label">
-                                                <input id="electronhub_group_models" type="checkbox" />
-                                                <span data-i18n="Group by vendors">Group by vendors</span>
-                                            </label>
-                                            <div class="toggle-description justifyLeft wide100p">
-                                                <span data-i18n="Group by vendors Description">
-                                                    Put OpenAI models in one group, Anthropic models in other group, etc. Can be combined with sorting.
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                         <div id="chutes_form" data-source="chutes">
                             <h4 data-i18n="Chutes API Key">Chutes API Key</h4>
@@ -3691,29 +3630,11 @@
                                     <option value="" data-i18n="-- Connect to the API --">-- Connect to the API --</option>
                                 </select>
                             </div>
-                            <div class="marginTopBot5">
-                                <div class="inline-drawer wide100p">
-                                    <div class="inline-drawer-toggle inline-drawer-header">
-                                        <b data-i18n="Chutes Model Sorting">Chutes Model Sorting</b>
-                                        <div class="fa-solid fa-circle-chevron-down inline-drawer-icon down"></div>
-                                    </div>
-                                    <div class="inline-drawer-content m-b-1">
-                                        <div class="marginTopBot5">
-                                            <label for="chutes_sort_models" class="checkbox_label">
-                                                <select id="chutes_sort_models">
-                                                    <option data-i18n="Alphabetically" value="alphabetically">Alphabetically</option>
-                                                    <option data-i18n="Input Price" value="pricing.input">Input Price (cheapest)</option>
-                                                    <option data-i18n="Output Price" value="pricing.output">Output Price (cheapest)</option>
-                                                    <option data-i18n="Context Size" value="context_length">Context Size</option>
-                                                </select>
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                         <div id="nanogpt_form" data-source="nanogpt">
                             <h4 data-i18n="NanoGPT API Key">NanoGPT API Key</h4>
+                            <a href="https://nano-gpt.com/balance" target="_blank" rel="noopener noreferrer" class="nanogpt_view_credits" data-i18n="View Remaining Credits">View Remaining Credits</a>
+                            <span class="nanogpt_credits_display marginLeft5"></span>
                             <div class="flex-container">
                                 <input id="api_key_nanogpt" name="api_key_nanogpt" class="text_pole flex1" value="" type="text" autocomplete="off">
                                 <div title="Manage API keys" data-i18n="[title]Manage API keys" class="menu_button fa-solid fa-key fa-fw manage-api-keys" data-key="api_key_nanogpt"></div>
@@ -4060,6 +3981,37 @@
                             </div>
                             <div>
                                 <small data-i18n="The underlying model of your deployment. This is detected automatically when you connect.">The underlying model of your deployment. This is detected automatically when you connect.</small>
+                            </div>
+                        </div>
+                        <div id="model_sorting_form" data-source="openrouter,chutes,electronhub,nanogpt,aimlapi">
+                            <div class="inline-drawer wide100p">
+                                <div class="inline-drawer-toggle inline-drawer-header">
+                                    <b data-i18n="Model Sorting">Model Sorting</b>
+                                    <div class="fa-solid fa-circle-chevron-down inline-drawer-icon down"></div>
+                                </div>
+                                <div class="inline-drawer-content m-b-1">
+                                    <div class="marginTopBot5">
+                                        <label for="cc_sort_models" class="checkbox_label">
+                                            <select id="cc_sort_models">
+                                                <option data-i18n="Alphabetically" value="alphabetically">Alphabetically</option>
+                                                <option data-i18n="Prompt Price (cheapest)" value="pricing.prompt">Prompt Price (cheapest)</option>
+                                                <option data-i18n="Completion Price (cheapest)" value="pricing.completion">Completion Price (cheapest)</option>
+                                                <option data-i18n="Context Size" value="context_length">Context Size</option>
+                                            </select>
+                                        </label>
+                                    </div>
+                                    <div class="marginTopBot5">
+                                        <label for="cc_group_models" class="checkbox_label">
+                                            <input id="cc_group_models" type="checkbox" />
+                                            <span data-i18n="Group by vendors">Group by vendors</span>
+                                        </label>
+                                        <div class="toggle-description justifyLeft wide100p">
+                                            <span data-i18n="Group by vendors Description">
+                                                Put OpenAI models in one group, Anthropic models in other group, etc. Can be combined with sorting.
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div id="prompt_post_processing_form">

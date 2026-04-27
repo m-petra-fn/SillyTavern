@@ -306,12 +306,12 @@ export const settingsToUpdate = {
     min_p: ['#min_p_openai', 'min_p_openai', false, false],
     repetition_penalty: ['#repetition_penalty_openai', 'repetition_penalty_openai', false, false],
     max_context_unlocked: ['#oai_max_context_unlocked', 'max_context_unlocked', true, false],
+    group_models: ['#cc_group_models', 'group_models', true, true],
+    sort_models: ['#cc_sort_models', 'sort_models', false, true],
     openai_model: ['#model_openai_select', 'openai_model', false, true],
     claude_model: ['#model_claude_select', 'claude_model', false, true],
     openrouter_model: ['#model_openrouter_select', 'openrouter_model', false, true],
     openrouter_use_fallback: ['#openrouter_use_fallback', 'openrouter_use_fallback', true, true],
-    openrouter_group_models: ['#openrouter_group_models', 'openrouter_group_models', false, true],
-    openrouter_sort_models: ['#openrouter_sort_models', 'openrouter_sort_models', false, true],
     openrouter_providers: ['#openrouter_providers_chat', 'openrouter_providers', false, true],
     openrouter_quantizations: ['#openrouter_quantizations_chat', 'openrouter_quantizations', false, true],
     openrouter_allow_fallbacks: ['#openrouter_allow_fallbacks', 'openrouter_allow_fallbacks', true, true],
@@ -323,14 +323,11 @@ export const settingsToUpdate = {
     perplexity_model: ['#model_perplexity_select', 'perplexity_model', false, true],
     groq_model: ['#model_groq_select', 'groq_model', false, true],
     chutes_model: ['#model_chutes_select', 'chutes_model', false, true],
-    chutes_sort_models: ['#chutes_sort_models', 'chutes_sort_models', false, true],
     siliconflow_model: ['#model_siliconflow_select', 'siliconflow_model', false, true],
     siliconflow_endpoint: ['#siliconflow_endpoint', 'siliconflow_endpoint', false, true],
     minimax_model: ['#model_minimax_select', 'minimax_model', false, true],
     minimax_endpoint: ['#minimax_endpoint', 'minimax_endpoint', false, true],
     electronhub_model: ['#model_electronhub_select', 'electronhub_model', false, true],
-    electronhub_sort_models: ['#electronhub_sort_models', 'electronhub_sort_models', false, true],
-    electronhub_group_models: ['#electronhub_group_models', 'electronhub_group_models', false, true],
     nanogpt_model: ['#model_nanogpt_select', 'nanogpt_model', false, true],
     deepseek_model: ['#model_deepseek_select', 'deepseek_model', false, true],
     aimlapi_model: ['#model_aimlapi_select', 'aimlapi_model', false, true],
@@ -428,6 +425,8 @@ const default_settings = {
     group_nudge_prompt: default_group_nudge_prompt,
     scenario_format: default_scenario_format,
     personality_format: default_personality_format,
+    sort_models: 'alphabetically',
+    group_models: false,
     openai_model: 'gpt-4-turbo',
     claude_model: 'claude-sonnet-4-5',
     google_model: 'gemini-2.5-pro',
@@ -438,14 +437,11 @@ const default_settings = {
     perplexity_model: 'sonar-pro',
     groq_model: 'llama-3.3-70b-versatile',
     chutes_model: 'deepseek-ai/DeepSeek-V3-0324',
-    chutes_sort_models: 'alphabetically',
     siliconflow_model: 'deepseek-ai/DeepSeek-V3',
     siliconflow_endpoint: SILICONFLOW_ENDPOINT.GLOBAL,
     minimax_model: 'MiniMax-M2.7',
     minimax_endpoint: MINIMAX_ENDPOINT.GLOBAL,
     electronhub_model: 'gpt-4o-mini',
-    electronhub_sort_models: 'alphabetically',
-    electronhub_group_models: false,
     nanogpt_model: 'gpt-4o-mini',
     deepseek_model: 'deepseek-v4-flash',
     aimlapi_model: 'chatgpt-4o-latest',
@@ -469,8 +465,6 @@ const default_settings = {
     custom_include_headers: '',
     openrouter_model: openrouter_website_model,
     openrouter_use_fallback: false,
-    openrouter_group_models: false,
-    openrouter_sort_models: 'alphabetically',
     openrouter_providers: [],
     openrouter_quantizations: [],
     openrouter_allow_fallbacks: true,
@@ -1909,35 +1903,6 @@ function getChutesModelTemplate(option) {
     `));
 }
 
-function getNanoGptModelTemplate(option) {
-    const model = model_list.find(x => x.id === option?.element?.value);
-
-    if (!option.id || !model) {
-        return option.text;
-    }
-
-    const inputPrice = model.pricing?.prompt;
-    const outputPrice = model.pricing?.completion;
-
-    let price = 'Unknown';
-    if (inputPrice !== undefined && outputPrice !== undefined) {
-        // Check if both prices are 0 (free model)
-        if (inputPrice === 0 && outputPrice === 0) {
-            price = 'Free';
-        } else {
-            price = `$${Math.round(inputPrice * 100) / 100}/$${Math.round(outputPrice * 100) / 100} in/out Mtoken`;
-        }
-    }
-
-    const contextLength = model.context_length || 'Unknown';
-
-    return $((`
-        <div class="flex-container alignItemsBaseline" title="${DOMPurify.sanitize(model.id)}">
-            <strong>${DOMPurify.sanitize(model.id)}</strong> | ${contextLength} ctx | <small>${price}</small>
-        </div>
-    `));
-}
-
 function calculateChutesCost() {
     if (oai_settings.chat_completion_source !== chat_completion_sources.CHUTES) {
         return;
@@ -1965,19 +1930,103 @@ function calculateChutesCost() {
     $('#chutes_max_prompt_cost').text(cost);
 }
 
+function getNanoGptModelTemplate(option) {
+    const model = model_list.find(x => x.id === option?.element?.value);
+
+    if (!option.id || !model) {
+        return option.text;
+    }
+
+    const inputPrice = model.pricing?.prompt;
+    const outputPrice = model.pricing?.completion;
+    let price = 'Unknown';
+
+    if (inputPrice !== undefined && outputPrice !== undefined) {
+        if (inputPrice === 0 && outputPrice === 0) {
+            price = 'Free';
+        } else {
+            price = `$${Math.round(inputPrice * 100) / 100}/$${Math.round(outputPrice * 100) / 100} in/out Mtoken`;
+        }
+    }
+
+    const visionIcon = model.capabilities?.vision ? '<i class="fa-solid fa-eye fa-sm" title="This model supports vision"></i>' : '';
+    const reasoningIcon = model.capabilities?.reasoning ? '<i class="fa-solid fa-brain fa-sm" title="This model supports reasoning"></i>' : '';
+    const toolCallsIcon = model.capabilities?.tool_calling ? '<i class="fa-solid fa-wrench fa-sm" title="This model supports tool calling"></i>' : '';
+
+    let subHtml = '';
+    const sub = model.subscription;
+
+    if (sub) {
+        if (sub.included) {
+            let titleText = 'Included in subscription';
+            let multiplierText = '';
+
+            if (sub.inputTokenMultiplier && sub.inputTokenMultiplier !== 1) {
+                multiplierText = ` (${sub.inputTokenMultiplier}x)`;
+                titleText += ` - Input Multiplier: ${sub.inputTokenMultiplier}x`;
+            }
+            subHtml = ` <small title="${titleText}"><i class="fa-solid fa-crown fa-sm"></i> Sub${multiplierText}</small>`;
+        } else if (sub.note) {
+            const safeNote = DOMPurify.sanitize(sub.note);
+            subHtml = ` <small title="${safeNote}"><i class="fa-solid fa-circle-info fa-sm"></i> Not in Sub</small>`;
+        }
+    }
+
+    const iconsContainer = document.createElement('span');
+    iconsContainer.insertAdjacentHTML('beforeend', visionIcon);
+    iconsContainer.insertAdjacentHTML('beforeend', reasoningIcon);
+    iconsContainer.insertAdjacentHTML('beforeend', toolCallsIcon);
+    iconsContainer.insertAdjacentHTML('beforeend', subHtml);
+
+    const capabilities = (iconsContainer.children.length) ? ` | ${iconsContainer.innerHTML}` : '';
+
+    const contextLength = model.context_length || 'Unknown';
+    const modelName = model.name || model.id;
+
+    return $((`
+        <div class="flex-container alignItemsBaseline" title="${DOMPurify.sanitize(model.id)}">
+            <strong>${DOMPurify.sanitize(modelName)}</strong> | ${contextLength} ctx | <small>${price}</small>${capabilities}
+        </div>
+    `));
+}
+
+function getAimlapiModelTemplate(option) {
+    const model = model_list.find(x => x.id === option?.element?.value);
+
+    if (!option.id || !model) {
+        return option.text;
+    }
+
+    const vendor = model.id.split('/')[0];
+
+    return $((`
+        <div class="flex-container flexFlowColumn" title="${DOMPurify.sanitize(model.id)}">
+            <div><strong>${DOMPurify.sanitize(model.info?.name || model.name || model.id)}</strong> | ${vendor}</div>
+        </div>
+    `));
+}
+
 function saveModelList(data) {
     model_list = data.map((model) => ({ ...model }));
     model_list.sort((a, b) => a?.id && b?.id && a.id.localeCompare(b.id));
 
     if (oai_settings.chat_completion_source == chat_completion_sources.OPENROUTER) {
-        model_list = openRouterSortBy(model_list, oai_settings.openrouter_sort_models);
-
+        model_list = sortModelsBy(model_list, oai_settings.sort_models, chat_completion_sources.OPENROUTER);
         $('#model_openrouter_select').empty();
+        $('#model_openrouter_select').append($('<option>', { value: openrouter_website_model, text: t`Use OpenRouter website setting` }));
 
-        if (true === oai_settings.openrouter_group_models) {
-            appendOpenRouterOptions(openRouterGroupByVendor(model_list), oai_settings.openrouter_group_models);
+        if (oai_settings.group_models) {
+            groupModelsByVendor(model_list, chat_completion_sources.OPENROUTER).forEach((models, vendor) => {
+                const optgroup = $('<optgroup>').attr('label', vendor);
+                models.forEach((model) => {
+                    optgroup.append($('<option>', { value: model.id, text: model.name }));
+                });
+                $('#model_openrouter_select').append(optgroup);
+            });
         } else {
-            appendOpenRouterOptions(model_list);
+            model_list.forEach((model) => {
+                $('#model_openrouter_select').append($('<option>', { value: model.id, text: model.name }));
+            });
         }
 
         $('#model_openrouter_select').val(oai_settings.openrouter_model).trigger('change');
@@ -2017,13 +2066,26 @@ function saveModelList(data) {
     }
 
     if (oai_settings.chat_completion_source == chat_completion_sources.AIMLAPI) {
+        model_list = model_list.filter(m => m.type === 'chat-completion');
+        model_list = sortModelsBy(model_list, oai_settings.sort_models, chat_completion_sources.AIMLAPI);
         $('#model_aimlapi_select').empty();
-        const chatModels = model_list.filter(m => m.type === 'chat-completion');
 
-        appendAimlapiOptions(aimlapiGroupByVendor(chatModels));
+        if (oai_settings.group_models) {
+            groupModelsByVendor(model_list, chat_completion_sources.AIMLAPI).forEach((models, vendor) => {
+                const optgroup = $('<optgroup>').attr('label', vendor);
+                models.forEach((model) => {
+                    optgroup.append($('<option>', { value: model.id, text: model.info?.name || model.id }));
+                });
+                $('#model_aimlapi_select').append(optgroup);
+            });
+        } else {
+            model_list.forEach((model) => {
+                $('#model_aimlapi_select').append($('<option>', { value: model.id, text: model.info?.name || model.id }));
+            });
+        }
 
-        if (!oai_settings.aimlapi_model && chatModels.length > 0) {
-            oai_settings.aimlapi_model = chatModels[0].id;
+        if (!oai_settings.aimlapi_model && model_list.length > 0) {
+            oai_settings.aimlapi_model = model_list[0].id;
         }
 
         $('#model_aimlapi_select').val(oai_settings.aimlapi_model).trigger('change');
@@ -2046,13 +2108,22 @@ function saveModelList(data) {
 
     if (oai_settings.chat_completion_source == chat_completion_sources.ELECTRONHUB) {
         model_list = model_list.filter(model => model?.endpoints?.includes('/v1/chat/completions'));
-
-        model_list = electronHubSortBy(model_list, oai_settings.electronhub_sort_models);
-
+        model_list = sortModelsBy(model_list, oai_settings.sort_models, chat_completion_sources.ELECTRONHUB);
         $('#model_electronhub_select').empty();
 
-        const groupedList = oai_settings.electronhub_group_models ? electronHubGroupByVendor(model_list) : model_list;
-        appendElectronHubOptions(groupedList, oai_settings.electronhub_group_models);
+        if (oai_settings.group_models) {
+            groupModelsByVendor(model_list, chat_completion_sources.ELECTRONHUB).forEach((models, vendor) => {
+                const optgroup = $('<optgroup>').attr('label', vendor);
+                models.forEach((model) => {
+                    optgroup.append($('<option>', { value: model.id, text: model.name }));
+                });
+                $('#model_electronhub_select').append(optgroup);
+            });
+        } else {
+            model_list.forEach((model) => {
+                $('#model_electronhub_select').append($('<option>', { value: model.id, text: model.name }));
+            });
+        }
 
         const selectedModel = model_list.find(model => model.id === oai_settings.electronhub_model);
         if (model_list.length > 0 && (!selectedModel || !oai_settings.electronhub_model)) {
@@ -2064,15 +2135,21 @@ function saveModelList(data) {
 
     if (oai_settings.chat_completion_source == chat_completion_sources.CHUTES) {
         model_list = model_list.filter(model => typeof model.id === 'string' && !model.id.toLowerCase().includes('affine'));
-
-        model_list = chutesSortBy(model_list, oai_settings.chutes_sort_models);
-
+        model_list = sortModelsBy(model_list, oai_settings.sort_models, chat_completion_sources.CHUTES);
         $('#model_chutes_select').empty();
 
-        for (const model of model_list) {
-            const option = $('<option>').val(model.id).text(model.id);
-            option.attr('data-model', JSON.stringify(model));
-            $('#model_chutes_select').append(option);
+        if (oai_settings.group_models) {
+            groupModelsByVendor(model_list, chat_completion_sources.CHUTES).forEach((models, vendor) => {
+                const optgroup = $('<optgroup>').attr('label', vendor);
+                models.forEach((model) => {
+                    optgroup.append($('<option>', { value: model.id, text: model.id }));
+                });
+                $('#model_chutes_select').append(optgroup);
+            });
+        } else {
+            model_list.forEach((model) => {
+                $('#model_chutes_select').append($('<option>', { value: model.id, text: model.id }));
+            });
         }
 
         const selectedModel = model_list.find(model => model.id === oai_settings.chutes_model);
@@ -2084,14 +2161,22 @@ function saveModelList(data) {
     }
 
     if (oai_settings.chat_completion_source == chat_completion_sources.NANOGPT) {
+        model_list = sortModelsBy(model_list, oai_settings.sort_models, chat_completion_sources.NANOGPT);
         $('#model_nanogpt_select').empty();
-        model_list.forEach((model) => {
-            $('#model_nanogpt_select').append(
-                $('<option>', {
-                    value: model.id,
-                    text: model.id,
-                }));
-        });
+
+        if (oai_settings.group_models) {
+            groupModelsByVendor(model_list, chat_completion_sources.NANOGPT).forEach((models, vendor) => {
+                const optgroup = $('<optgroup>').attr('label', vendor);
+                models.forEach((model) => {
+                    optgroup.append($('<option>', { value: model.id, text: model.name || model.id }));
+                });
+                $('#model_nanogpt_select').append(optgroup);
+            });
+        } else {
+            model_list.forEach((model) => {
+                $('#model_nanogpt_select').append($('<option>', { value: model.id, text: model.name || model.id }));
+            });
+        }
 
         const selectedModel = model_list.find(model => model.id === oai_settings.nanogpt_model);
         if (model_list.length > 0 && (!selectedModel || !oai_settings.nanogpt_model)) {
@@ -2104,11 +2189,7 @@ function saveModelList(data) {
     if (oai_settings.chat_completion_source == chat_completion_sources.DEEPSEEK) {
         $('#model_deepseek_select').empty();
         model_list.forEach((model) => {
-            $('#model_deepseek_select').append(
-                $('<option>', {
-                    value: model.id,
-                    text: model.id,
-                }));
+            $('#model_deepseek_select').append($('<option>', { value: model.id, text: model.id }));
         });
 
         const selectedModel = model_list.find(model => model.id === oai_settings.deepseek_model);
@@ -2122,11 +2203,7 @@ function saveModelList(data) {
     if (oai_settings.chat_completion_source === chat_completion_sources.POLLINATIONS) {
         $('#model_pollinations_select').empty();
         model_list.forEach((model) => {
-            $('#model_pollinations_select').append(
-                $('<option>', {
-                    value: model.id,
-                    text: model.id,
-                }));
+            $('#model_pollinations_select').append($('<option>', { value: model.id, text: model.id }));
         });
 
         const selectedModel = model_list.find(model => model.id === oai_settings.pollinations_model);
@@ -2315,181 +2392,134 @@ function saveModelList(data) {
     }
 }
 
-function appendOpenRouterOptions(model_list, groupModels = false, sort = false) {
-    $('#model_openrouter_select').append($('<option>', { value: openrouter_website_model, text: t`Use OpenRouter website setting` }));
-
-    const appendOption = (model, parent = null) => {
-        (parent || $('#model_openrouter_select')).append(
-            $('<option>', {
-                value: model.id,
-                text: model.name,
-            }));
-    };
-
-    if (groupModels) {
-        model_list.forEach((models, vendor) => {
-            const optgroup = $(`<optgroup label="${vendor}">`);
-
-            models.forEach((model) => {
-                appendOption(model, optgroup);
+/**
+ * Sorts models by the specified property for the given source.
+ * @param {object[]} data - Array of model objects
+ * @param {string} property - Sort property ('alphabetically', 'context_length', 'pricing.prompt', 'pricing.completion')
+ * @param {string} source - Chat Completion source (e.g., 'openrouter', 'chutes', 'electronhub', 'nanogpt')
+ * @returns {object[]} Sorted array of model objects
+ */
+function sortModelsBy(data, property, source) {
+    switch (source) {
+        case chat_completion_sources.OPENROUTER:
+            return data.sort((a, b) => {
+                if (property === 'context_length') {
+                    return (b.context_length || 0) - (a.context_length || 0);
+                } else if (property === 'pricing.input' || property === 'pricing.prompt') {
+                    return parseFloat(a.pricing?.prompt || 0) - parseFloat(b.pricing?.prompt || 0);
+                } else if (property === 'pricing.output' || property === 'pricing.completion') {
+                    return parseFloat(a.pricing?.completion || 0) - parseFloat(b.pricing?.completion || 0);
+                } else {
+                    return a?.name && b?.name ? a.name.localeCompare(b.name) : 0;
+                }
             });
-
-            $('#model_openrouter_select').append(optgroup);
-        });
-    } else {
-        model_list.forEach((model) => {
-            appendOption(model);
-        });
-    }
-}
-
-const openRouterSortBy = (data, property = 'alphabetically') => {
-    return data.sort((a, b) => {
-        if (property === 'context_length') {
-            return b.context_length - a.context_length;
-        } else if (property === 'pricing.prompt') {
-            return parseFloat(a.pricing.prompt) - parseFloat(b.pricing.prompt);
-        } else {
-            // Alphabetically
-            return a?.name && b?.name && a.name.localeCompare(b.name);
-        }
-    });
-};
-
-function openRouterGroupByVendor(array) {
-    return array.reduce((acc, curr) => {
-        const vendor = curr.id.split('/')[0];
-
-        if (!acc.has(vendor)) {
-            acc.set(vendor, []);
-        }
-
-        acc.get(vendor).push(curr);
-
-        return acc;
-    }, new Map());
-}
-
-function chutesSortBy(data, property = 'alphabetically') {
-    return data.sort((a, b) => {
-        if (property === 'context_length') {
-            return b.context_length - a.context_length;
-        } else if (property === 'pricing.input') {
-            const aPrice = parseFloat(a.pricing?.input || 0);
-            const bPrice = parseFloat(b.pricing?.input || 0);
-            return aPrice - bPrice;
-        } else if (property === 'pricing.output') {
-            const aPrice = parseFloat(a.pricing?.output || 0);
-            const bPrice = parseFloat(b.pricing?.output || 0);
-            return aPrice - bPrice;
-        } else {
-            return a?.id && b?.id && a.id.localeCompare(b.id);
-        }
-    });
-}
-
-function appendElectronHubOptions(model_list, groupModels = false) {
-    const appendOption = (model, parent = null) => {
-        (parent || $('#model_electronhub_select')).append(
-            $('<option>', {
-                value: model.id,
-                text: model.name,
-            }));
-    };
-
-    if (groupModels) {
-        model_list.forEach((models, vendor) => {
-            const optgroup = $('<optgroup>').attr('label', vendor);
-
-            models.forEach((model) => {
-                appendOption(model, optgroup);
+        case chat_completion_sources.CHUTES:
+            return data.sort((a, b) => {
+                if (property === 'context_length') {
+                    return (b.context_length || 0) - (a.context_length || 0);
+                } else if (property === 'pricing.input' || property === 'pricing.prompt') {
+                    return parseFloat(a.pricing?.input || 0) - parseFloat(b.pricing?.input || 0);
+                } else if (property === 'pricing.output' || property === 'pricing.completion') {
+                    return parseFloat(a.pricing?.output || 0) - parseFloat(b.pricing?.output || 0);
+                } else {
+                    return a?.id && b?.id ? a.id.localeCompare(b.id) : 0;
+                }
             });
-
-            $('#model_electronhub_select').append(optgroup);
-        });
-    } else {
-        model_list.forEach((model) => {
-            appendOption(model);
-        });
+        case chat_completion_sources.ELECTRONHUB:
+            return data.sort((a, b) => {
+                if (property === 'context_length') {
+                    return (b.tokens || 0) - (a.tokens || 0);
+                } else if (property === 'pricing.input' || property === 'pricing.prompt') {
+                    return parseFloat(a.pricing?.input || 0) - parseFloat(b.pricing?.input || 0);
+                } else if (property === 'pricing.output' || property === 'pricing.completion') {
+                    return parseFloat(a.pricing?.output || 0) - parseFloat(b.pricing?.output || 0);
+                } else {
+                    return a?.name && b?.name ? a.name.localeCompare(b.name) : 0;
+                }
+            });
+        case chat_completion_sources.NANOGPT:
+            return data.sort((a, b) => {
+                if (property === 'context_length') {
+                    return (b.context_length || 0) - (a.context_length || 0);
+                } else if (property === 'pricing.input' || property === 'pricing.prompt') {
+                    return parseFloat(a.pricing?.prompt || 0) - parseFloat(b.pricing?.prompt || 0);
+                } else if (property === 'pricing.output' || property === 'pricing.completion') {
+                    return parseFloat(a.pricing?.completion || 0) - parseFloat(b.pricing?.completion || 0);
+                } else {
+                    return a?.name && b?.name ? a.name.localeCompare(b.name) : 0;
+                }
+            });
+        case chat_completion_sources.AIMLAPI:
+            return data.sort((a, b) => {
+                if (property === 'context_length') {
+                    return (b.info?.contextLength || 0) - (a.info?.contextLength || 0);
+                } else {
+                    // No pricing information on the API. Sort alphabetically by name.
+                    return a?.info?.name && b?.info?.name ? a.info.name.localeCompare(b.info.name) : 0;
+                }
+            });
+        default:
+            return data;
     }
 }
 
-function electronHubSortBy(data, property = 'alphabetically') {
-    return data.sort((a, b) => {
-        if (property === 'context_length') {
-            return b.tokens - a.tokens;
-        } else if (property === 'pricing.input') {
-            return parseFloat(a.pricing.input) - parseFloat(b.pricing.input);
-        } else if (property === 'pricing.output') {
-            return parseFloat(a.pricing.output) - parseFloat(b.pricing.output);
-        } else {
-            return a?.name && b?.name && a.name.localeCompare(b.name);
-        }
-    });
-}
-
-function electronHubGroupByVendor(array) {
-    return array.reduce((acc, curr) => {
-        const vendor = String(curr?.name || curr?.id || 'Other').split(':')[0].trim() || 'Other';
-
-        if (!acc.has(vendor)) {
-            acc.set(vendor, []);
-        }
-
-        acc.get(vendor).push(curr);
-
-        return acc;
-    }, new Map());
-}
-
-function aimlapiGroupByVendor(array) {
-    return array.reduce((acc, curr) => {
-        const vendor = curr.info.developer;
-
-        if (!acc.has(vendor)) {
-            acc.set(vendor, []);
-        }
-
-        acc.get(vendor).push(curr);
-
-        return acc;
-    }, new Map());
-}
-
-function appendAimlapiOptions(model_list) {
-    const appendOption = (model, parent = null) => {
-        (parent || $('#model_aimlapi_select')).append(
-            $('<option>', {
-                value: model.id,
-                text: model.info?.name || model.name || model.id,
-            }));
-    };
-
-    model_list.forEach((models, vendor) => {
-        const optgroup = $(`<optgroup label="${vendor}">`);
-
-        models.forEach((model) => {
-            appendOption(model, optgroup);
-        });
-
-        $('#model_aimlapi_select').append(optgroup);
-    });
-}
-
-function getAimlapiModelTemplate(option) {
-    const model = model_list.find(x => x.id === option?.element?.value);
-
-    if (!option.id || !model) {
-        return option.text;
+/**
+ * Groups models by vendor for the given source. If not supported, returns a map with a single entry containing all models.
+ * @param {object[]} array Array of model objects
+ * @param {string} source Chat Completion source (e.g., 'openrouter')
+ * @returns {Map<string, object[]>} Map of vendor to array of models
+ */
+function groupModelsByVendor(array, source) {
+    switch (source) {
+        case chat_completion_sources.OPENROUTER:
+            return array.reduce((acc, curr) => {
+                const vendor = curr.id.split('/')[0];
+                if (!acc.has(vendor)) {
+                    acc.set(vendor, []);
+                }
+                acc.get(vendor).push(curr);
+                return acc;
+            }, new Map());
+        case chat_completion_sources.ELECTRONHUB:
+            return array.reduce((acc, curr) => {
+                const vendor = String(curr?.name || curr?.id || 'Other').split(':')[0].trim() || 'Other';
+                if (!acc.has(vendor)) {
+                    acc.set(vendor, []);
+                }
+                acc.get(vendor).push(curr);
+                return acc;
+            }, new Map());
+        case chat_completion_sources.NANOGPT:
+            return array.reduce((acc, curr) => {
+                const vendorPart = /\//.test(curr.id) ? curr.id.split('/')[0] : curr.id.split('-')[0];
+                const vendor = String(vendorPart?.trim()?.toLowerCase() || 'Other');
+                if (!acc.has(vendor)) {
+                    acc.set(vendor, []);
+                }
+                acc.get(vendor).push(curr);
+                return acc;
+            }, new Map());
+        case chat_completion_sources.CHUTES:
+            return array.reduce((acc, curr) => {
+                const vendor = curr.id.split('/')[0];
+                if (!acc.has(vendor)) {
+                    acc.set(vendor, []);
+                }
+                acc.get(vendor).push(curr);
+                return acc;
+            }, new Map());
+        case chat_completion_sources.AIMLAPI:
+            return array.reduce((acc, curr) => {
+                const vendor = curr.info?.developer || 'Other';
+                if (!acc.has(vendor)) {
+                    acc.set(vendor, []);
+                }
+                acc.get(vendor).push(curr);
+                return acc;
+            }, new Map());
+        default:
+            return new Map([['', array]]);
     }
-
-    const vendor = model.id.split('/')[0];
-
-    return $((`
-        <div class="flex-container flexFlowColumn" title="${DOMPurify.sanitize(model.id)}">
-            <div><strong>${DOMPurify.sanitize(model.info?.name || model.name || model.id)}</strong> | ${vendor}</div>
-        </div>
-    `));
 }
 
 /**
@@ -4163,6 +4193,10 @@ function migrateChatCompletionSettings(settings) {
         { oldKey: 'use_makersuite_sysprompt', oldValue: true, newKey: 'use_sysprompt', newValue: true },
         { oldKey: 'mistralai_model', oldValue: /^(mistral-medium|mistral-small)$/, newKey: 'mistralai_model', newValue: (settings.mistralai_model + '-latest') },
         { oldKey: 'deepseek_model', oldValue: /^deepseek-(chat|reasoner|coder)$/, newKey: 'deepseek_model', newValue: 'deepseek-v4-flash' },
+        { oldKey: 'openrouter_sort_models', oldValue: 'alphabetically', newKey: 'sort_models', newValue: 'alphabetically' },
+        { oldKey: 'openrouter_sort_models', oldValue: 'pricing.prompt', newKey: 'sort_models', newValue: 'pricing.prompt' },
+        { oldKey: 'openrouter_sort_models', oldValue: 'context_length', newKey: 'sort_models', newValue: 'context_length' },
+        { oldKey: 'openrouter_group_models', oldValue: true, newKey: 'group_models', newValue: true },
     ];
 
     for (const migration of migrateMap) {
@@ -5857,18 +5891,6 @@ async function onModelChange() {
     eventSource.emit(event_types.CHATCOMPLETION_MODEL_CHANGED, value);
 }
 
-async function onOpenrouterModelSortChange() {
-    await getStatusOpen();
-}
-
-async function onChutesModelSortChange() {
-    await getStatusOpen();
-}
-
-async function onElectronHubModelSortChange() {
-    await getStatusOpen();
-}
-
 async function onNewPresetClick() {
     const name = await Popup.show.input(t`Preset name:`, t`Hint: Use a character/group name to bind preset to a specific chat.`, oai_settings.preset_settings_openai);
 
@@ -6853,16 +6875,6 @@ export function initOpenAI() {
         saveSettingsDebounced();
     });
 
-    $('#openrouter_group_models').on('input', function () {
-        oai_settings.openrouter_group_models = !!$(this).prop('checked');
-        saveSettingsDebounced();
-    });
-
-    $('#openrouter_sort_models').on('input', function () {
-        oai_settings.openrouter_sort_models = String($(this).val());
-        saveSettingsDebounced();
-    });
-
     $('#openrouter_allow_fallbacks').on('input', function () {
         oai_settings.openrouter_allow_fallbacks = !!$(this).prop('checked');
         updateOpenRouterProvidersWarning('#openrouter_providers_chat');
@@ -6871,21 +6883,6 @@ export function initOpenAI() {
 
     $('#openrouter_middleout').on('input', function () {
         oai_settings.openrouter_middleout = String($(this).val());
-        saveSettingsDebounced();
-    });
-
-    $('#electronhub_sort_models').on('input', function () {
-        oai_settings.electronhub_sort_models = String($(this).val());
-        saveSettingsDebounced();
-    });
-
-    $('#chutes_sort_models').on('input', function () {
-        oai_settings.chutes_sort_models = String($(this).val());
-        saveSettingsDebounced();
-    });
-
-    $('#electronhub_group_models').on('input', function () {
-        oai_settings.electronhub_group_models = !!$(this).prop('checked');
         saveSettingsDebounced();
     });
 
@@ -7154,6 +7151,18 @@ export function initOpenAI() {
         saveSettingsDebounced();
     });
 
+    $('#cc_group_models').on('input', async () => {
+        oai_settings.group_models = $('#cc_group_models').prop('checked');
+        reconnectOpenAi();
+        saveSettingsDebounced();
+    });
+
+    $('#cc_sort_models').on('input', async () => {
+        oai_settings.sort_models = $('#cc_sort_models').val().toString();
+        reconnectOpenAi();
+        saveSettingsDebounced();
+    });
+
     $('#api_button_openai').on('click', onConnectButtonClick);
     $('#openai_reverse_proxy').on('input', onReverseProxyInput);
     $('#model_openai_select').on('change', onModelChange);
@@ -7189,11 +7198,6 @@ export function initOpenAI() {
     $('#vertexai_validate_service_account').on('click', onVertexAIValidateServiceAccount);
     $('#vertexai_clear_service_account').on('click', onVertexAIClearServiceAccount);
     $('#model_openrouter_select').on('change', onModelChange);
-    $('#openrouter_group_models').on('change', onOpenrouterModelSortChange);
-    $('#openrouter_sort_models').on('change', onOpenrouterModelSortChange);
-    $('#chutes_sort_models').on('change', onChutesModelSortChange);
-    $('#electronhub_group_models').on('change', onElectronHubModelSortChange);
-    $('#electronhub_sort_models').on('change', onElectronHubModelSortChange);
     $('#model_ai21_select').on('change', onModelChange);
     $('#model_mistralai_select').on('change', onModelChange);
     $('#model_cohere_select').on('change', onModelChange);
