@@ -1915,7 +1915,7 @@ async function uploadGroupAvatar(event) {
         return;
     }
 
-    let thumbnail = await createThumbnail(String(croppedImage), 200, 300);
+    let thumbnail = await createThumbnail(String(croppedImage), 300, 300);
     //remove data:image/whatever;base64
     thumbnail = thumbnail.replace(/^data:image\/[a-z]+;base64,/, '');
     let _thisGroup = groups.find((x) => x.id == openGroupId);
