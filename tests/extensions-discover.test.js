@@ -4,9 +4,10 @@ import path from 'node:path';
 import process from 'node:process';
 import { afterAll, beforeAll, describe, expect, test } from '@jest/globals';
 
-// extensions.js reads this config value at module load; the env var override avoids
-// needing a config.yaml in the test environment
+// extensions.js reads these config values at module load or per request; the env var
+// overrides avoid needing a config.yaml in the test environment
 process.env.SILLYTAVERN_GIT_BACKEND = 'auto';
+process.env.SILLYTAVERN_EXTENSIONS_ENABLED = 'true';
 
 // The extensions endpoint resolves the built-in extensions folder relative to the repo root
 const originalCwd = process.cwd();

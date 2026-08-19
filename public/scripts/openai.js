@@ -14,6 +14,7 @@ import {
     extension_prompt_roles,
     extension_prompt_types,
     Generate,
+    getCurrentChatId,
     getExtensionPrompt,
     getExtensionPromptMaxDepth,
     getMediaDisplay,
@@ -376,7 +377,7 @@ export const settingsToUpdate = {
     prompts: ['', 'prompts', false, false],
     prompt_order: ['', 'prompt_order', false, false],
     show_external_models: ['#openai_show_external_models', 'show_external_models', true, true],
-    proxy_password: ['#openai_proxy_password', 'proxy_password', false, true],
+    proxy_password: ['#openai_proxy_access_key', 'proxy_password', false, true],
     assistant_prefill: ['#claude_assistant_prefill', 'assistant_prefill', false, false],
     assistant_impersonation: ['#claude_assistant_impersonation', 'assistant_impersonation', false, false],
     use_sysprompt: ['#use_sysprompt', 'use_sysprompt', true, false],
@@ -1635,6 +1636,21 @@ export async function prepareOpenAIMessages({
 }
 
 /**
+ * Extracts a human-readable message from a Chat Completion error response.
+ * Providers can return an error object without a message field, or the error as
+ * a plain string. statusText is only used for non-2xx responses, since for an
+ * HTTP 200 carrying an error payload it is just "OK" (#5647).
+ * @param {object} data Parsed response body
+ * @param {Response} response Fetch response
+ * @returns {string} Error message to display and throw
+ */
+function getChatCompletionErrorMessage(data, response) {
+    const error = data?.error ?? data?.detail?.error;
+    const message = typeof error === 'string' ? error : (error?.message || error?.code || error?.type);
+    return String(message || (!response.ok && response.statusText) || t`Unknown error`);
+}
+
+/**
  * Handles errors during streaming requests.
  * @param {Response} response
  * @param {string} decoded - response text or decoded stream data
@@ -1656,7 +1672,7 @@ export function tryParseStreamingError(response, decoded, { quiet = false } = {}
         // if trying to fix "[object Object]" displayed to users, start here
 
         if (data.error) {
-            !quiet && toastr.error(data.error.message || response.statusText, 'Chat Completion API');
+            !quiet && toastr.error(getChatCompletionErrorMessage(data, response), 'Chat Completion API');
             throw new Error(data);
         }
 
@@ -1666,7 +1682,7 @@ export function tryParseStreamingError(response, decoded, { quiet = false } = {}
         }
 
         if (data.detail) {
-            !quiet && toastr.error(data.detail?.error?.message || response.statusText, 'Chat Completion API');
+            !quiet && toastr.error(getChatCompletionErrorMessage(data, response), 'Chat Completion API');
             throw new Error(data);
         }
     } catch {
@@ -2556,6 +2572,7 @@ function getReasoningEffort(settings = null, model = null) {
         chat_completion_sources.ELECTRONHUB,
         chat_completion_sources.CHUTES,
         chat_completion_sources.DEEPSEEK,
+        chat_completion_sources.FIREWORKS,
     ];
 
     if (!reasoningEffortSources.includes(settings.chat_completion_source)) {
@@ -2574,6 +2591,17 @@ function getReasoningEffort(settings = null, model = null) {
                     return reasoning_effort_types.max;
                 default:
                     return reasoning_effort_types.high;
+            }
+        }
+
+        if (settings.chat_completion_source === chat_completion_sources.FIREWORKS) {
+            switch (settings.reasoning_effort) {
+                case reasoning_effort_types.auto:
+                    return undefined;
+                case reasoning_effort_types.min:
+                    return reasoning_effort_types.low;
+                default:
+                    return settings.reasoning_effort;
             }
         }
 
@@ -2864,6 +2892,10 @@ export async function createGenerationParameters(settings, model, type, messages
         generate_data.nanogpt_payg_override = settings.nanogpt_payg_override;
     }
 
+    if (settings.chat_completion_source === chat_completion_sources.FIREWORKS && type !== 'quiet') {
+        generate_data.chat_id = getCurrentChatId();
+    }
+
     if ([chat_completion_sources.MAKERSUITE, chat_completion_sources.VERTEXAI].includes(settings.chat_completion_source)) {
         const stopStringsLimit = 5;
         generate_data.top_k = Number(settings.top_k_openai);
@@ -3147,7 +3179,7 @@ async function sendOpenAIRequest(type, messages, signal, { jsonSchema = null } =
         checkModerationError(data);
 
         if (data.error) {
-            const message = data.error.message || response.statusText || t`Unknown error`;
+            const message = getChatCompletionErrorMessage(data, response);
             toastr.error(message, t`API returned an error`);
             throw new Error(message);
         }
@@ -3239,7 +3271,7 @@ export function getStreamingReply(data, state, { chatCompletionSource = null, ov
             }
         });
         return data.choices?.[0]?.delta?.content ?? data.choices?.[0]?.message?.content ?? data.choices?.[0]?.text ?? '';
-    } else if ([chat_completion_sources.CUSTOM, chat_completion_sources.POLLINATIONS, chat_completion_sources.AIMLAPI, chat_completion_sources.MOONSHOT, chat_completion_sources.COMETAPI, chat_completion_sources.ELECTRONHUB, chat_completion_sources.NANOGPT, chat_completion_sources.ZAI, chat_completion_sources.SILICONFLOW, chat_completion_sources.CHUTES, chat_completion_sources.WORKERS_AI].includes(chat_completion_source)) {
+    } else if ([chat_completion_sources.CUSTOM, chat_completion_sources.POLLINATIONS, chat_completion_sources.AIMLAPI, chat_completion_sources.MOONSHOT, chat_completion_sources.COMETAPI, chat_completion_sources.ELECTRONHUB, chat_completion_sources.NANOGPT, chat_completion_sources.ZAI, chat_completion_sources.SILICONFLOW, chat_completion_sources.CHUTES, chat_completion_sources.WORKERS_AI, chat_completion_sources.FIREWORKS].includes(chat_completion_source)) {
         if (show_thoughts) {
             state.reasoning +=
                 data.choices?.filter(x => x?.delta?.reasoning_content)?.[0]?.delta?.reasoning_content ??
@@ -6145,10 +6177,8 @@ function reconnectOpenAi() {
     }
 }
 
-function onProxyPasswordShowClick() {
-    const $input = $('#openai_proxy_password');
-    const type = $input.attr('type') === 'password' ? 'text' : 'password';
-    $input.attr('type', type);
+function onProxyAccessKeyShowClick() {
+    $('#openai_proxy_access_key').toggleClass('masked-secret');
     $(this).toggleClass('fa-eye-slash fa-eye');
 }
 
@@ -6471,7 +6501,7 @@ function setProxyPreset(name, url, password) {
     oai_settings.reverse_proxy = url;
     $('#openai_reverse_proxy').val(oai_settings.reverse_proxy);
     oai_settings.proxy_password = password;
-    $('#openai_proxy_password').val(oai_settings.proxy_password);
+    $('#openai_proxy_access_key').val(oai_settings.proxy_password);
     reconnectOpenAi();
 }
 
@@ -6490,7 +6520,7 @@ function onProxyPresetChange() {
 $('#save_proxy').on('click', async function () {
     const presetName = $('#openai_reverse_proxy_name').val();
     const reverseProxy = $('#openai_reverse_proxy').val();
-    const proxyPassword = $('#openai_proxy_password').val();
+    const proxyPassword = $('#openai_proxy_access_key').val();
 
     setProxyPreset(presetName, reverseProxy, proxyPassword);
     saveSettingsDebounced();
@@ -6524,7 +6554,7 @@ $('#delete_proxy').on('click', async function () {
         oai_settings.reverse_proxy = selected_proxy.url;
         $('#openai_reverse_proxy').val(selected_proxy.url);
         oai_settings.proxy_password = selected_proxy.password;
-        $('#openai_proxy_password').val(selected_proxy.password);
+        $('#openai_proxy_access_key').val(selected_proxy.password);
 
         saveSettingsDebounced();
         $('#openai_proxy_preset').val(selected_proxy.name);
@@ -6939,9 +6969,15 @@ export function initOpenAI() {
         saveSettingsDebounced();
     });
 
-    $('#openai_proxy_password').on('input', function () {
+    $('#openai_proxy_access_key').on('input', function () {
         oai_settings.proxy_password = String($(this).val());
         saveSettingsDebounced();
+    });
+
+    $('#openai_proxy_access_key').on('copy cut', function (event) {
+        if ($(this).hasClass('masked-secret')) {
+            event.preventDefault();
+        }
     });
 
     $('#claude_assistant_prefill').on('input', function () {
@@ -7333,7 +7369,7 @@ export function initOpenAI() {
     $('#openai_logit_bias_export_preset').on('click', onLogitBiasPresetExportClick);
     $('#openai_logit_bias_delete_preset').on('click', onLogitBiasPresetDeleteClick);
     $('#import_oai_preset').on('click', onImportPresetClick);
-    $('#openai_proxy_password_show').on('click', onProxyPasswordShowClick);
+    $('#openai_proxy_access_key_show').on('click', onProxyAccessKeyShowClick);
     $('#customize_additional_parameters').on('click', onCustomizeParametersClick);
     $('#openai_proxy_preset').on('change', onProxyPresetChange);
 }

@@ -2155,7 +2155,7 @@
                                             </strong>
                                         </div>
                                     </div>
-                                    <div class="flex-container flexFlowColumn wide100p textAlignCenter marginTop10" data-source="openai,custom,claude,xai,makersuite,vertexai,aimlapi,openrouter,pollinations,perplexity,cometapi,electronhub,azure_openai,chutes,nanogpt,deepseek">
+                                    <div class="flex-container flexFlowColumn wide100p textAlignCenter marginTop10" data-source="openai,custom,claude,xai,makersuite,vertexai,aimlapi,openrouter,pollinations,perplexity,cometapi,electronhub,azure_openai,chutes,nanogpt,deepseek,fireworks">
                                         <div class="flex-container oneline-dropdown" title="Constrains effort on reasoning for reasoning models.&#10;Reducing reasoning effort can result in faster responses and fewer tokens used on reasoning in a response." data-i18n="[title]Constrains effort on reasoning for reasoning models.">
                                             <label for="openai_reasoning_effort">
                                                 <span data-i18n="Reasoning Effort">Reasoning Effort</span>
@@ -2171,6 +2171,9 @@
                                             </select>
                                             <div class="toggle-description justifyLeft marginBot5" data-source="openai,custom,xai,aimlapi,openrouter,pollinations,perplexity,cometapi,electronhub,azure_openai,chutes" data-i18n="OpenAI-compatible effort levels vary by model. Minimum and maximum may use model-specific aliases. Auto does not send an effort level.">
                                                 OpenAI-compatible effort levels vary by model. Minimum and maximum may use model-specific aliases. Auto does not send an effort level.
+                                            </div>
+                                            <div class="toggle-description justifyLeft marginBot5" data-source="fireworks" data-i18n="Fireworks supports low, medium, high, and max as distinct effort levels. Minimum is aliased to low. Auto does not send an effort level.">
+                                                Fireworks supports low, medium, high, and max as distinct effort levels. Minimum is aliased to low. Auto does not send an effort level.
                                             </div>
                                             <strong class="toggle-description justifyLeft marginBot5" data-source="openrouter">
                                                 Request model reasoning = Off with Reasoning Effort = Minimum disables reasoning entirely on models that support that, but can cause errors with some models.
@@ -3008,8 +3011,8 @@
                                     <br>
                                 </div>
                                 <div class="flex-container width100p">
-                                    <input id="openai_proxy_password" type="password" class="text_pole flex1" placeholder="" form="openai_form" autocomplete="off" />
-                                    <div id="openai_proxy_password_show" title="Peek a password" data-i18n="[title]Peek a password" class="menu_button fa-solid fa-eye-slash fa-fw"></div>
+                                    <input id="openai_proxy_access_key" type="text" class="text_pole flex1 masked-secret" placeholder="" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" />
+                                    <div id="openai_proxy_access_key_show" title="Peek a password" data-i18n="[title]Peek a password" class="menu_button fa-solid fa-eye-slash fa-fw"></div>
                                 </div>
                             </div>
                         </div>
@@ -3985,7 +3988,7 @@
                             <!-- Azure API Key -->
                             <h4><span data-i18n="Azure API Key">Azure API Key</span></h4>
                             <div class="flex-container">
-                                <input id="api_key_azure_openai" data-setting="api_key_azure_openai" class="text_pole flex1" type="password" autocomplete="off">
+                                <input id="api_key_azure_openai" data-setting="api_key_azure_openai" class="text_pole flex1" type="text" autocomplete="off">
                                 <div title="Manage API keys" data-i18n="[title]Manage API keys" class="menu_button fa-solid fa-key fa-fw manage-api-keys" data-key="api_key_azure_openai"></div>
                             </div>
                             <div class="neutral_warning" data-i18n="For privacy reasons, your API key will be hidden after you click 'Connect'." data-for="api_key_azure_openai">

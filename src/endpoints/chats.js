@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
@@ -31,6 +32,23 @@ const checkIntegrity = !!getConfigValue('backups.chat.checkIntegrity', true, 'bo
 export const CHAT_BACKUPS_PREFIX = 'chat_';
 
 /**
+ * Builds a stable filename key for a chat's backups.
+ * Non-ASCII characters are replaced with underscores, so names such as CJK ones
+ * would all collapse to the same key and share one backup quota. A short hash of
+ * the raw name keeps those keys distinct while ASCII names stay unchanged (#5780).
+ * @param {string} name The name of the chat.
+ * @returns {string} Sanitized filename key for the backup files.
+ */
+export function getBackupKey(name) {
+    const sanitized = sanitize(name).replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    if (/[^\x20-\x7E]/.test(name)) {
+        const hash = crypto.createHash('sha256').update(name).digest('hex').slice(0, 8);
+        return `${sanitized}_${hash}`;
+    }
+    return sanitized;
+}
+
+/**
  * Saves a chat to the backups directory.
  * @param {string} directory The user's backup directory.
  * @param {string} name The name of the chat.
@@ -44,8 +62,7 @@ function backupChat(directory, name, data, backupPrefix = CHAT_BACKUPS_PREFIX) {
         if (!fs.existsSync(directory)) {
             console.error(`The chat couldn't be backed up because no directory exists at ${directory}!`);
         }
-        // replace non-alphanumeric characters with underscores
-        name = sanitize(name).replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        name = getBackupKey(name);
 
         const backupFile = path.join(directory, `${backupPrefix}${name}_${generateTimestamp()}.jsonl`);
 
@@ -66,15 +83,19 @@ function backupChat(directory, name, data, backupPrefix = CHAT_BACKUPS_PREFIX) {
 const backupFunctions = new Map();
 
 /**
- * Gets a backup function for a user.
+ * Gets a backup function for a user and chat.
+ * Throttling is keyed per user and chat so that rapid saves in one chat cannot
+ * swallow the throttled backup of another chat saved in the same window.
  * @param {string} handle User handle
+ * @param {string} name The name of the chat, as passed to backupChat
  * @returns {typeof backupChat} Backup function
  */
-function getBackupFunction(handle) {
-    if (!backupFunctions.has(handle)) {
-        backupFunctions.set(handle, _.throttle(backupChat, throttleInterval, { leading: true, trailing: true }));
+function getBackupFunction(handle, name) {
+    const key = `${handle} ${name}`;
+    if (!backupFunctions.has(key)) {
+        backupFunctions.set(key, _.throttle(backupChat, throttleInterval, { leading: true, trailing: true }));
     }
-    return backupFunctions.get(handle) || (() => { });
+    return backupFunctions.get(key) || (() => { });
 }
 
 /**
@@ -511,7 +532,7 @@ export async function trySaveChat(chatData, filePath, skipIntegrityCheck = false
         throw new IntegrityMismatchError(`Chat integrity check failed for "${filePath}". The expected integrity slug was "${chatIntegritySlug}".`);
     }
     tryWriteFileSync(filePath, jsonlData);
-    getBackupFunction(handle)(backupDirectory, cardName, jsonlData);
+    getBackupFunction(handle, cardName)(backupDirectory, cardName, jsonlData);
 }
 
 router.post('/save', validateAvatarUrlMiddleware, async function (request, response) {
