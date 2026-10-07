@@ -59,6 +59,7 @@ import { t } from './i18n.js';
 import { humanizedDateTime } from './RossAscends-mods.js';
 import { accountStorage } from './util/AccountStorage.js';
 import { MEDIA_DISPLAY, MEDIA_SOURCE, MEDIA_TYPE, SCROLL_BEHAVIOR, SWIPE_DIRECTION } from './constants.js';
+import { EventEmitter } from '/lib/eventemitter.js';
 
 /**
  * @typedef {Object} FileAttachment
@@ -552,6 +553,7 @@ async function overrideMessageAvatar(messageId, messageBlock) {
  */
 async function changeMessageTitle(messageId, messageBlock) {
     const message = chat[messageId];
+    let changeAll = false;
 
     if (!message) {
         console.warn('Failed to find message with id', messageId);
@@ -562,17 +564,43 @@ async function changeMessageTitle(messageId, messageBlock) {
         t`Change message title.`,
         t`<p>Input the text of the title for the message.</p>`,
         message.name || '',
-        { okButton: 'OK', cancelButton: true },
+        {
+            okButton: 'OK', cancelButton: true, customButtons: [
+                {
+                    text: t`Change all titles`,
+                    result: POPUP_RESULT.AFFIRMATIVE,
+                    appendAtEnd: true,
+                    classes: 'popup-button-ok',
+                    action: () => {
+                        changeAll = true;
+                    }
+                }
+            ]
+        },
     );
 
     if (popupResult && popupResult.trim() !== message.name) {
-        message.name = popupResult.trim();
-        messageBlock.find('.ch_name .name_text').text(message.name);
-        updateChat();
+        const newTitle = popupResult.trim();
+        message.name = newTitle;
+
+        if (changeAll) {
+            for (let index = 0; index < chat.length; index++) {
+                const msg = chat[index];
+                if (msg !== message) {
+                    msg.name = newTitle;
+                    $(`.mes`).attr('mesid', index).find('.ch_name .name_text').text(newTitle);
+                }
+            }
+            updateChat(event_types.CHAT_CHANGED);
+        } else {
+            messageBlock.find('.ch_name .name_text').text(newTitle);
+            updateChat(event_types.MESSAGE_UPDATED, messageId);
+        }
     }
 
-    async function updateChat(e) {
-        await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
+
+    async function updateChat(ev, messageId) {
+        await messageId ? eventSource.emit(ev, messageId) : eventSource.emit(ev);
         await saveChatConditional();
     }
 }
