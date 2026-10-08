@@ -590,13 +590,50 @@ async function changeMessageTitle(messageId, messageBlock) {
                     $(`.mes`).attr('mesid', index).find('.ch_name .name_text').text(newTitle);
                 }
             }
-            updateChat(event_types.CHAT_CHANGED);
         } else {
             messageBlock.find('.ch_name .name_text').text(newTitle);
-            updateChat(event_types.MESSAGE_UPDATED, messageId);
         }
     }
 
+}
+
+/**
+ * Reverse span titles with content of span.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @param {boolean} changeAll
+ * @returns {Promise<void>}
+ */
+async function reverseTranslationTags(messageId, messageBlock, changeAll) {
+    const message = chat[messageId];
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
+    }
+
+    reverseTranslationTagsOfMessage(message, messageId);
+
+    if (changeAll) {
+        for (let index = 0; index < chat.length; index++) {
+            const msg = chat[index];
+            if (msg !== message) {
+                reverseTranslationTagsOfMessage(msg, index);
+            }
+        }
+       
+    }
+
+}
+
+function reverseTranslationTagsOfMessage(message, messageId) {
+    message.mes = message.mes.replace(/<span\b[^>]*title="([^"]+)"[^>]*>(.*?)<\/span>/gi, (match, title, content) => {
+        // remove curly quotes and normal quotes beforehand
+        title = title.replace(/["“”]/g, '');
+        content = content.replace(/["“”]/g, '');
+        return `<span title="${content}">“${title}”</span>`;
+    });
+    updateMessageBlock(messageId, message, { rerenderMessage: true });
 }
 
 /**
@@ -664,11 +701,9 @@ async function changeMessageQuotes(messageId, messageBlock) {
                 const loopedMessageId = chat[messageId]
                 changeQuotesOfMessage(message, messageEl, messageEl.find('.mes_text'), loopedMessageId, toCurly);
             });
-            updateChat(event_types.CHAT_CHANGED);
         } else {
             const messageContent = messageBlock.find('.mes_text');
             changeQuotesOfMessage(message, messageBlock, messageContent, messageId, toCurly);
-            updateChat(event_types.MESSAGE_UPDATED, messageId);
         }
     }
 
@@ -2565,6 +2600,14 @@ export function initChatUtilities() {
         const messageBlock = $(this).closest('.mes');
         const messageId = Number(messageBlock.attr('mesid'));
         changeMessageQuotes(messageId, messageBlock);
+    });
+
+    $(document).on('click', '.mes_reverse_translation', function (event) {
+        // detect if shift key is held
+        const changeAll = event.shiftKey;
+        const messageBlock = $(this).closest('.mes');
+        const messageId = Number(messageBlock.attr('mesid'));
+        reverseTranslationTags(messageId, messageBlock, changeAll);
     });
 
     $(document).on('click', '.mes_override_avatar', function () {
