@@ -645,7 +645,6 @@ function reverseTranslationTagsOfMessage(message, messageId) {
 async function changeMessageQuotes(messageId, messageBlock) {
     const message = chat[messageId];
     let changeAll = false;
-    let toCurly = false;
 
     if (!message) {
         console.warn('Failed to find message with id', messageId);
@@ -656,101 +655,75 @@ async function changeMessageQuotes(messageId, messageBlock) {
         t`Change message quotes.`,
         t`<p>Choose the type of quote operation to perform.</p>`,
         {
-            okButton: 'Cancel', cancelButton: false, customButtons: [
-                {
-                    text: 'Straight',
-                    result: POPUP_RESULT.CUSTOM1,
-                    action: () => {
-                        toCurly = false;
-                    }
-                },
-                {
-                    text: 'Curly',
-                    result: POPUP_RESULT.CUSTOM1,
-                    action: () => {
-                        toCurly = true;
-                    }
-                },
-                {
-                    text: 'All straight',
-                    result: POPUP_RESULT.CUSTOM1,
-                    action: () => {
-                        toCurly = false;
-                        changeAll = true;
-                    }
-                },
+            okButton: 'Single', cancelButton: false, customButtons: [
                 {
                     text: 'All curly',
-                    result: POPUP_RESULT.CUSTOM1,
+                    result: POPUP_RESULT.AFFIRMATIVE,
+                    appendAtEnd: true,
                     action: () => {
-                        toCurly = true;
                         changeAll = true;
                     }
                 }
             ]
         },
     );
-    console.log('Changing quotes of message', messageId, toCurly, changeAll);
+    
+    console.log('Changing quotes of message', messageId, changeAll);
 
-    if (popupResult === POPUP_RESULT.CUSTOM1) {
-
+    if (popupResult) {
         if (changeAll) {
             $('.mes').each(function () {
-                const messageEl = $(this);
                 const messageId = parseInt($(this).attr('mesid'));
-                const loopedMessageId = chat[messageId]
-                changeQuotesOfMessage(message, messageEl, messageEl.find('.mes_text'), loopedMessageId, toCurly);
+                const loopedMessage = chat[messageId]
+                changeQuotesOfMessage(loopedMessage, messageId);
             });
         } else {
-            const messageContent = messageBlock.find('.mes_text');
-            changeQuotesOfMessage(message, messageBlock, messageContent, messageId, toCurly);
+            changeQuotesOfMessage(message, messageId);
         }
     }
 
 }
 
-function changeQuotesOfMessage(message, messageEl, messageContent, messageId, toCurly) {
-    if (!message || !messageEl || !messageEl.text) {
+function changeQuotesOfMessage(message, messageId) {
+    if (!message || !messageId) {
         return;
     }
     
-    if (toCurly) {
-        const currentText = message.mes;
-        console.log('Changing quotes of message to curly', currentText);
+    const currentText = message.mes;
+    console.log('Changing quotes of message to curly', currentText);
 
-        // 1. Normalize the current text by moving quotes outside of span tags
-        const normalizedCurrentText = currentText
-            // Matches quotes directly BEFORE an opening span tag and swaps their position
-            .replace(/([\"'“”‘’]+)(<span\b[^>]*>)/gi, '$2$1')
-            // Matches quotes directly AFTER a closing span tag and swaps their position
-            .replace(/(<\/span>)([\"'“”‘’]+)/gi, '$2$1');
+    // 1. Normalize the current text by moving quotes outside of span tags
+    const normalizedCurrentText = currentText
+        // Matches quotes directly BEFORE an opening span tag and swaps their position
+        .replace(/([\"'“”‘’]+)(<span\b[^>]*>)/gi, '$2$1')
+        // Matches quotes directly AFTER a closing span tag and swaps their position
+        .replace(/(<\/span>)([\"'“”‘’]+)/gi, '$2$1');
 
-        console.log('Normalized current text', normalizedCurrentText);
+    console.log('Normalized current text', normalizedCurrentText);
 
-        // 2. Apply smartquotes to the normalized text
-        const curliedText = smartquotes(normalizedCurrentText);
-        console.log('Changed quotes of message to curly', curliedText);
+    // 2. Apply smartquotes to the normalized text
+    const curliedText = smartquotes(normalizedCurrentText);
+    console.log('Changed quotes of message to curly', curliedText);
 
-        // 3. Normalize the curlied text by replacing curly quotes inside span tags with straight quotes
-        const normalizedCurliedText = curliedText.replace(/(<span\b[^>]*>)/gi, (match) => {
-            return match.replace(/[“”]/g, '"');
-        });
-        
-        console.log('Normalized curlied text', normalizedCurliedText);
+    // 3. Normalize the curlied text by replacing curly quotes inside span tags with straight quotes
+    const normalizedCurliedText = curliedText.replace(/(<span\b[^>]*>)/gi, (match) => {
+        return match.replace(/[“”]/g, '"');
+    });
+    
+    console.log('Normalized curlied text', normalizedCurliedText);
 
-        // 4. Update the message content and message object with the normalized curlied text
-        messageContent.text(normalizedCurliedText);
-        message.mes = normalizedCurliedText;
-        updateChat(message, messageId);
-    }
+    // 4. Update the message content and message object with the normalized curlied text
+    message.mes = normalizedCurliedText;
+    updateChat(message, messageId);
 
 }
 
 async function updateChat(message, messageId) {
     if (message && messageId) {
+        console.log('Updating chat message', messageId);
         updateMessageBlock(messageId, message, { rerenderMessage: true });
+        await saveChatConditional();
     }
-    await saveChatConditional();
 }
 
 function removeSecondImage(messageId, messageBlock) {
