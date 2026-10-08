@@ -541,7 +541,7 @@ async function overrideMessageAvatar(messageId, messageBlock) {
         await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
         await saveChatConditional();
 
-        applyImageToDivs(message, messageBlock, false);
+        applyImageToDivs(message, messageBlock, 1);
     }
 }
 
@@ -729,6 +729,12 @@ async function updateChat(message, messageId) {
     }
 }
 
+/**
+ * Removes the second image from the message.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @returns {void}
+ */
 function removeSecondImage(messageId, messageBlock) {
     const message = chat[messageId];
 
@@ -752,7 +758,75 @@ function removeSecondImage(messageId, messageBlock) {
 }
 
 /**
- * Flip images of the message.
+ * Assigns a portrait image to the message.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @returns {Promise<void>}
+ */
+async function assignPortraitImage(messageId, messageBlock) {
+    const message = chat[messageId];
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
+    }
+
+    $('#embed_file_input')
+        .off('change')
+        .on('change', parseAndUploadEmbedThirdImage)
+        .trigger('click');
+
+    async function parseAndUploadEmbedThirdImage(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const isValid = await validateFile(file);
+
+        if (!isValid) {
+            $('#file_form').trigger('reset');
+            return;
+        }
+
+        console.log('Uploading third image for message', message, file);
+        const sanitizedFileName = await getSanitizedFilename(file.name);
+        console.log('Sanitized file name:', sanitizedFileName);
+        message.thirdImage = sanitizedFileName;
+
+        await uploadSecondImage(message, 'thirdImage', 'embed_file_input');
+        await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
+        await saveChatConditional();
+
+        applyImageToDivs(message, messageBlock, 3);
+    }
+}
+
+/**
+ * Removes the portrait image from the message.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @returns {void}
+ */
+function removeThirdImage(messageId, messageBlock) {
+    const message = chat[messageId];
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
+    }
+
+    delete message.thirdImage;
+    $(messageBlock).find('.mesPortraitWrapper').css('display', 'none');
+    $(messageBlock).find('.thirdPortraitImage').attr('src', '');
+    updateChatImages();
+
+    async function updateChatImages() {
+        await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
+        await saveChatConditional();
+    }
+}
+
+/**
+ * Flips the primary and second images of the message.
  * @param {number} messageId
  * @param {JQuery<HTMLElement>} messageBlock
  * @returns {Promise<void>}
@@ -771,8 +845,8 @@ async function flipMessageImages(messageId, messageBlock) {
     message.force_avatar = secondImage || null;
     message.secondImage = avatarImage || null;
 
-    applyImageToDivs(message, messageBlock, false);
-    applyImageToDivs(message, messageBlock, true);
+    applyImageToDivs(message, messageBlock, 1);
+    applyImageToDivs(message, messageBlock, 2);
     await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
     await saveChatConditional();
 }
@@ -869,14 +943,19 @@ async function copyImagesToMessage(sourceMessageId, targetMessageId, messageBloc
         return;
     }
 
-    if (sourceMessage.secondImage) {
-        targetMessage.secondImage = sourceMessage.secondImage;
-        applyImageToDivs(targetMessage, messageBlock, true);
-    }
-
     if (sourceMessage.force_avatar) {
         targetMessage.force_avatar = sourceMessage.force_avatar;
-        applyImageToDivs(targetMessage, messageBlock, false);
+        applyImageToDivs(targetMessage, messageBlock, 1);
+    }
+
+    if (sourceMessage.secondImage) {
+        targetMessage.secondImage = sourceMessage.secondImage;
+        applyImageToDivs(targetMessage, messageBlock, 2);
+    }
+
+    if (sourceMessage.thirdImage) {
+        targetMessage.thirdImage = sourceMessage.thirdImage;
+        applyImageToDivs(targetMessage, messageBlock, 3);
     }
 
     await eventSource.emit(event_types.MESSAGE_UPDATED, targetMessageId);
@@ -922,35 +1001,51 @@ function addSecondImage(messageId, messageBlock) {
         await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
         await saveChatConditional();
 
-        applyImageToDivs(message, messageBlock);
+        applyImageToDivs(message, messageBlock, 2);
     }
 }
 
-export async function applyImageToDivs(messageObject, messageDiv, isSecondImage = true) {
-    if (!messageDiv || (isSecondImage && !messageObject?.secondImage) || (!isSecondImage && !messageObject?.force_avatar)) {
+/**
+ * Applies one of the message's images to its corresponding DOM element.
+ * @param {ChatMessage} messageObject
+ * @param {JQuery<HTMLElement>} messageDiv
+ * @param {1|2|3} imageType 1 for the primary avatar, 2 for the second image, or 3 for the portrait image.
+ * @returns {Promise<void>}
+ */
+export async function applyImageToDivs(messageObject, messageDiv, imageType) {
+    if (!messageDiv || !messageObject || ![1, 2, 3].includes(imageType)) {
         return;
     }
 
-    console.log('Applying second image to message divs if applicable.', messageObject, messageDiv, isSecondImage);
+    console.log('Applying message image to message divs if applicable.', messageObject, messageDiv, imageType);
 
     const mesAvatarWrapper = $(messageDiv).find('.mesAvatarWrapper');
     const originalAvatarImg = $(messageDiv).find('.avatarImage');
     const secondImageWrapper = $(messageDiv).find('.secondImageWrapper');
     const secondAvatarImg = $(messageDiv).find('.secondAvatarImg');
+    const thirdImageWrapper = $(messageDiv).find('.mesPortraitWrapper');
+    const thirdAvatarImg = $(messageDiv).find('.thirdPortraitImage');
     const hr = $(mesAvatarWrapper).find('.imageDivider');
 
-    const secondImageUrl = messageObject.secondImage;
-
-    //unset display none to show the wrapper
-
-    console.log('Second image URL:', secondImageUrl);
-    // Set the image source
-    if (isSecondImage) {
-        secondAvatarImg.attr('src', secondImageUrl);
-        secondImageWrapper.css('display', 'unset');
-        hr.css('display', 'block');
-    } else if (messageObject.force_avatar) {
-        originalAvatarImg.attr('src', messageObject.force_avatar);
+    switch (imageType) {
+        case 1:
+            if (messageObject.force_avatar) {
+                originalAvatarImg.attr('src', messageObject.force_avatar);
+            }
+            break;
+        case 2:
+            if (messageObject.secondImage) {
+                secondAvatarImg.attr('src', messageObject.secondImage);
+                secondImageWrapper.css('display', 'unset');
+                hr.css('display', 'block');
+            }
+            break;
+        case 3:
+            if (messageObject.thirdImage) {
+                thirdAvatarImg.attr('src', messageObject.thirdImage);
+                thirdImageWrapper.css('display', 'unset');
+            }
+            break;
     }
 
 }
@@ -2742,10 +2837,16 @@ export function initChatUtilities() {
         copyMessageImages(messageId, messageBlock);
     });
 
-    $(document).on('click', '.mes_flip_images', function (event) {
+    $(document).on('click', '.mes_flip_images', function () {
         const messageBlock = $(this).closest('.mes');
         const messageId = Number(messageBlock.attr('mesid'));
         flipMessageImages(messageId, messageBlock);
+    });
+
+    $(document).on('click', '.mes_third_image', function () {
+        const messageBlock = $(this).closest('.mes');
+        const messageId = Number(messageBlock.attr('mesid'));
+        assignPortraitImage(messageId, messageBlock);
     });
 
     $(document).on('click', '.mes_override_avatar', function () {
@@ -2759,6 +2860,14 @@ export function initChatUtilities() {
             const messageBlock = $(this).closest('.mes');
             const messageId = Number(messageBlock.attr('mesid'));
             removeSecondImage(messageId, messageBlock);
+        }
+    });
+
+    $(document).on('click', '.thirdPortraitImage', function () {
+        if (confirm('Remove portrait image?')) {
+            const messageBlock = $(this).closest('.mes');
+            const messageId = Number(messageBlock.attr('mesid'));
+            removeThirdImage(messageId, messageBlock);
         }
     });
 
