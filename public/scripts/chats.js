@@ -633,7 +633,7 @@ function reverseTranslationTagsOfMessage(message, messageId) {
         content = content.replace(/["“”]/g, '');
         return `<span title="${content}">“${title}”</span>`;
     });
-    updateMessageBlock(messageId, message, { rerenderMessage: true });
+    updateChat(message, messageId);
 }
 
 /**
@@ -717,21 +717,39 @@ function changeQuotesOfMessage(message, messageEl, messageContent, messageId, to
     if (toCurly) {
         const currentText = message.mes;
         console.log('Changing quotes of message to curly', currentText);
-        const curliedText = smartquotes(currentText);
+
+        // 1. Normalize the current text by moving quotes outside of span tags
+        const normalizedCurrentText = currentText
+            // Matches quotes directly BEFORE an opening span tag and swaps their position
+            .replace(/([\"'“”‘’]+)(<span\b[^>]*>)/gi, '$2$1')
+            // Matches quotes directly AFTER a closing span tag and swaps their position
+            .replace(/(<\/span>)([\"'“”‘’]+)/gi, '$2$1');
+
+        console.log('Normalized current text', normalizedCurrentText);
+
+        // 2. Apply smartquotes to the normalized text
+        const curliedText = smartquotes(normalizedCurrentText);
         console.log('Changed quotes of message to curly', curliedText);
+
+        // 3. Normalize the curlied text by replacing curly quotes inside span tags with straight quotes
         const normalizedCurliedText = curliedText.replace(/(<span\b[^>]*>)/gi, (match) => {
             return match.replace(/[“”]/g, '"');
         });
+        
         console.log('Normalized curlied text', normalizedCurliedText);
+
+        // 4. Update the message content and message object with the normalized curlied text
         messageContent.text(normalizedCurliedText);
         message.mes = normalizedCurliedText;
-        updateMessageBlock(messageId, message, { rerenderMessage: true });
+        updateChat(message, messageId);
     }
 
 }
 
-async function updateChat(ev, messageId) {
-    await (messageId ? eventSource.emit(ev, messageId) : eventSource.emit(ev));
+async function updateChat(message, messageId) {
+    if (message && messageId) {
+        updateMessageBlock(messageId, message, { rerenderMessage: true });
+    }
     await saveChatConditional();
 }
 
@@ -749,9 +767,9 @@ function removeSecondImage(messageId, messageBlock) {
     $(messageBlock).find('.secondImageWrapper').css('display', 'none');
     $(messageBlock).find('.secondAvatarImg').attr('src', '');
     $(messageBlock).find('.imageDivider').css('display', 'none');
-    updateChat();
+    updateChatImages();
 
-    async function updateChat(e) {
+    async function updateChatImages() {
         await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
         await saveChatConditional();
     }
