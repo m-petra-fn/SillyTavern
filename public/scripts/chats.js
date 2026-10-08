@@ -1049,10 +1049,6 @@ async function openImageSwapper(messageId, messageBlock) {
         return;
     }
 
-    if (message.portraitImage) {
-        return;
-    }
-
     const availableSlots = [
         { slot: 1, label: 'Avatar', image: message.force_avatar || true },
         { slot: 2, label: 'Second image', image: message.secondImage },
@@ -1080,15 +1076,20 @@ async function openImageSwapper(messageId, messageBlock) {
         },
     }));
 
-    await Popup.show.confirm(
+    const popupResult = await Popup.show.confirm(
         t`Swap message images.`,
         t`Choose two image slots to swap.`,
         {
-            cancelButton: true,
+            okButton: false,
+            cancelButton: 'Cancel',
             customButtons,
             wide: true
         },
     );
+
+    if (!popupResult) {
+        return;
+    }
 
     if (selectedPair) {
         swapImageSlots(message, messageBlock, selectedPair[0], selectedPair[1]);
