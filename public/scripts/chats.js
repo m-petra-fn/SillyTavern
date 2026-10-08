@@ -28,6 +28,7 @@ import {
     getMediaIndex,
     getMediaDisplay,
     chatElement,
+    updateMessageBlock,
 } from '../script.js';
 import { selected_group } from './group-chats.js';
 import { power_user } from './power-user.js';
@@ -59,7 +60,6 @@ import { t } from './i18n.js';
 import { humanizedDateTime } from './RossAscends-mods.js';
 import { accountStorage } from './util/AccountStorage.js';
 import { MEDIA_DISPLAY, MEDIA_SOURCE, MEDIA_TYPE, SCROLL_BEHAVIOR, SWIPE_DIRECTION } from './constants.js';
-import { EventEmitter } from '/lib/eventemitter.js';
 
 /**
  * @typedef {Object} FileAttachment
@@ -570,7 +570,6 @@ async function changeMessageTitle(messageId, messageBlock) {
                     text: t`Change all titles`,
                     result: POPUP_RESULT.AFFIRMATIVE,
                     appendAtEnd: true,
-                    classes: 'popup-button-ok',
                     action: () => {
                         changeAll = true;
                     }
@@ -598,11 +597,107 @@ async function changeMessageTitle(messageId, messageBlock) {
         }
     }
 
+}
 
-    async function updateChat(ev, messageId) {
-        await messageId ? eventSource.emit(ev, messageId) : eventSource.emit(ev);
-        await saveChatConditional();
+/**
+ * Changes quotes of the message.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @returns {Promise<void>}
+ */
+async function changeMessageQuotes(messageId, messageBlock) {
+    const message = chat[messageId];
+    let changeAll = false;
+    let toCurly = false;
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
     }
+
+    const popupResult = await Popup.show.confirm(
+        t`Change message quotes.`,
+        t`<p>Choose the type of quote operation to perform.</p>`,
+        {
+            okButton: 'Cancel', cancelButton: false, customButtons: [
+                {
+                    text: 'Straight',
+                    result: POPUP_RESULT.CUSTOM1,
+                    action: () => {
+                        toCurly = false;
+                    }
+                },
+                {
+                    text: 'Curly',
+                    result: POPUP_RESULT.CUSTOM1,
+                    action: () => {
+                        toCurly = true;
+                    }
+                },
+                {
+                    text: 'All straight',
+                    result: POPUP_RESULT.CUSTOM1,
+                    action: () => {
+                        toCurly = false;
+                        changeAll = true;
+                    }
+                },
+                {
+                    text: 'All curly',
+                    result: POPUP_RESULT.CUSTOM1,
+                    action: () => {
+                        toCurly = true;
+                        changeAll = true;
+                    }
+                }
+            ]
+        },
+    );
+    console.log('Changing quotes of message', messageId, toCurly, changeAll);
+
+    if (popupResult === POPUP_RESULT.CUSTOM1) {
+
+        if (changeAll) {
+            $('.mes').each(function () {
+                const messageEl = $(this);
+                const messageId = parseInt($(this).attr('mesid'));
+                const loopedMessageId = chat[messageId]
+                changeQuotesOfMessage(message, messageEl, messageEl.find('.mes_text'), loopedMessageId, toCurly);
+            });
+            updateChat(event_types.CHAT_CHANGED);
+        } else {
+            const messageContent = messageBlock.find('.mes_text');
+            changeQuotesOfMessage(message, messageBlock, messageContent, messageId, toCurly);
+            updateChat(event_types.MESSAGE_UPDATED, messageId);
+        }
+    }
+
+}
+
+function changeQuotesOfMessage(message, messageEl, messageContent, messageId, toCurly) {
+    if (!message || !messageEl || !messageEl.text) {
+        return;
+    }
+    
+    if (toCurly) {
+        const currentText = message.mes;
+        console.log('Changing quotes of message to curly', currentText);
+        const curliedText = smartquotes(currentText);
+        console.log('Changed quotes of message to curly', curliedText);
+        const normalizedCurliedText = curliedText.replace(/(<span\b[^>]*>)/gi, (match) => {
+            return match.replace(/[“”]/g, '"');
+        });
+        console.log('Normalized curlied text', normalizedCurliedText);
+        messageContent.text(normalizedCurliedText);
+        message.mes = normalizedCurliedText;
+        updateMessageBlock(messageId, message, { rerenderMessage: true });
+    }
+
+}
+
+async function updateChat(ev, messageId) {
+    await (messageId ? eventSource.emit(ev, messageId) : eventSource.emit(ev));
+    await saveChatConditional();
 }
 
 function removeSecondImage(messageId, messageBlock) {
@@ -2464,6 +2559,12 @@ export function initChatUtilities() {
         const messageBlock = $(this).closest('.mes');
         const messageId = Number(messageBlock.attr('mesid'));
         changeMessageTitle(messageId, messageBlock);
+    });
+
+    $(document).on('click', '.mes_change_quotes', function () {
+        const messageBlock = $(this).closest('.mes');
+        const messageId = Number(messageBlock.attr('mesid'));
+        changeMessageQuotes(messageId, messageBlock);
     });
 
     $(document).on('click', '.mes_override_avatar', function () {
