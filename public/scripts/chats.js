@@ -1073,7 +1073,7 @@ async function openImageSwapper(messageId, messageBlock) {
 
     let selectedPair;
     const customButtons = pairs.map(([first, second], index) => ({
-        text: `Swap ${first.label} and ${second.label}`,
+        text: `${first.slot} <-> ${second.slot}`,
         result: POPUP_RESULT.CUSTOM1 + index,
         action: () => {
             selectedPair = [first.slot, second.slot];
@@ -1086,6 +1086,7 @@ async function openImageSwapper(messageId, messageBlock) {
         {
             cancelButton: true,
             customButtons,
+            wide: true
         },
     );
 
