@@ -861,9 +861,9 @@ function removePortraitImage(messageId, messageBlock) {
     }
 
     delete message.portraitImage;
-    $(messageBlock).find('.thirdPortraitImage').attr('src', '');
-    $(messageBlock).find('.third_portrait').css('display', 'none');
-    $(messageBlock).find('.mesPortraitWrapper .imageDivider').css('display', 'none');
+    $(messageBlock).find('.portraitImage').attr('src', '');
+    $(messageBlock).find('.portrait').css('display', 'none');
+    $(messageBlock).find('.mesExtraImagesWrapper .imageDivider').css('display', 'none');
     updateChatImages();
 
     async function updateChatImages() {
@@ -893,7 +893,7 @@ async function removeSquareImage(messageId, messageBlock, imageType) {
     $(messageBlock).find(imageSelector).attr('src', '');
     $(messageBlock).find(imageType === 4 ? '.thirdAvatar' : '.fourthAvatar').css('display', 'none');
     if (imageType === 5) {
-        $(messageBlock).find('.mesPortraitWrapper .imageDivider').css('display', 'none');
+        $(messageBlock).find('.mesExtraImagesWrapper .imageDivider').css('display', 'none');
     }
     await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
     await saveChatConditional();
@@ -907,8 +907,8 @@ async function removeSquareImage(messageId, messageBlock, imageType) {
  */
 function clearPortraitImage(message, messageBlock) {
     delete message.portraitImage;
-    $(messageBlock).find('.thirdPortraitImage').attr('src', '');
-    $(messageBlock).find('.third_portrait').css('display', 'none');
+    $(messageBlock).find('.portraitImage').attr('src', '');
+    $(messageBlock).find('.portrait').css('display', 'none');
 }
 
 /**
@@ -922,7 +922,7 @@ function clearSquareImages(message, messageBlock) {
     delete message.fourthImage;
     $(messageBlock).find('.thirdAvatarImage, .fourthAvatarImage').attr('src', '');
     $(messageBlock).find('.thirdAvatar, .fourthAvatar').css('display', 'none');
-    $(messageBlock).find('.mesPortraitWrapper .imageDivider').css('display', 'none');
+    $(messageBlock).find('.mesExtraImagesWrapper .imageDivider').css('display', 'none');
 }
 
 /**
@@ -981,7 +981,7 @@ async function flipSquareImages(messageId, messageBlock) {
     } else {
         $(messageBlock).find('.fourthAvatarImage').attr('src', '');
         $(messageBlock).find('.fourthAvatar').css('display', 'none');
-        $(messageBlock).find('.mesPortraitWrapper .imageDivider').css('display', 'none');
+        $(messageBlock).find('.mesExtraImagesWrapper .imageDivider').css('display', 'none');
     }
 
     await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
@@ -1285,14 +1285,14 @@ export async function applyImageToDivs(messageObject, messageDiv, imageType) {
     const originalAvatarImg = $(messageDiv).find('.avatarImage');
     const secondImageDiv = $(messageDiv).find('.secondAvatarDiv');
     const secondAvatarImg = $(messageDiv).find('.secondAvatarImage');
-    const thirdImageWrapper = $(messageDiv).find('.mesPortraitWrapper');
-    const thirdAvatarImg = $(messageDiv).find('.thirdPortraitImage');
-    const thirdPortrait = $(messageDiv).find('.third_portrait');
+    const extraImagesWrapper = $(messageDiv).find('.mesExtraImagesWrapper');
+    const portraitImageElement = $(messageDiv).find('.portraitImage');
+    const portraitContainer = $(messageDiv).find('.portrait');
     const thirdImageImg = $(messageDiv).find('.thirdAvatarImage');
     const thirdImageDiv = $(messageDiv).find('.thirdAvatar');
     const fourthImageImg = $(messageDiv).find('.fourthAvatarImage');
     const fourthImageDiv = $(messageDiv).find('.fourthAvatar');
-    const portraitHr = thirdImageWrapper.find('.imageDivider');
+    const portraitHr = extraImagesWrapper.find('.imageDivider');
     const hr = $(mesAvatarWrapper).find('.imageDivider');
 
     switch (imageType) {
@@ -1313,11 +1313,11 @@ export async function applyImageToDivs(messageObject, messageDiv, imageType) {
             break;
         case 3:
             if (messageObject.portraitImage) {
-                thirdAvatarImg.attr('src', messageObject.portraitImage);
-                thirdPortrait.css('display', 'block');
+                portraitImageElement.attr('src', messageObject.portraitImage);
+                portraitContainer.css('display', 'block');
             } else {
-                thirdAvatarImg.attr('src', '');
-                thirdPortrait.css('display', 'none');
+                portraitImageElement.attr('src', '');
+                portraitContainer.css('display', 'none');
             }
             break;
         case 4:
@@ -3189,7 +3189,7 @@ export function initChatUtilities() {
         }
     });
 
-    $(document).on('click', '.thirdPortraitImage', function () {
+    $(document).on('click', '.portraitImage', function () {
         if (confirm('Remove portrait image?')) {
             const messageBlock = $(this).closest('.mes');
             const messageId = Number(messageBlock.attr('mesid'));
