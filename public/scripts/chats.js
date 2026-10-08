@@ -989,6 +989,114 @@ async function flipSquareImages(messageId, messageBlock) {
 }
 
 /**
+ * Swaps two image slots and updates their DOM elements.
+ * @param {ChatMessage} message
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @param {1|2|3|4} firstSlot
+ * @param {1|2|3|4} secondSlot
+ * @returns {void}
+ */
+function swapImageSlots(message, messageBlock, firstSlot, secondSlot) {
+    const imageProperties = ['force_avatar', 'secondImage', 'thirdImage', 'fourthImage'];
+    const firstProperty = imageProperties[firstSlot - 1];
+    const secondProperty = imageProperties[secondSlot - 1];
+    const firstImage = message[firstProperty];
+
+    message[firstProperty] = message[secondProperty] || null;
+    message[secondProperty] = firstImage || null;
+
+    const renderTypes = { 1: 1, 2: 2, 3: 4, 4: 5 };
+    applyImageToDivs(message, messageBlock, renderTypes[firstSlot]);
+    applyImageToDivs(message, messageBlock, renderTypes[secondSlot]);
+}
+
+/**
+ * Flips the square image slots horizontally: 1 <-> 3 and 2 <-> 4.
+ * Does nothing while a portrait image is assigned.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @returns {Promise<void>}
+ */
+async function flipImagesHorizontally(messageId, messageBlock) {
+    const message = chat[messageId];
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
+    }
+
+    if (message.portraitImage) {
+        return;
+    }
+
+    swapImageSlots(message, messageBlock, 1, 3);
+    swapImageSlots(message, messageBlock, 2, 4);
+    await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
+    await saveChatConditional();
+}
+
+/**
+ * Opens a popup to choose two image slots to swap.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @returns {Promise<void>}
+ */
+async function openImageSwapper(messageId, messageBlock) {
+    const message = chat[messageId];
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
+    }
+
+    if (message.portraitImage) {
+        return;
+    }
+
+    const availableSlots = [
+        { slot: 1, label: 'Avatar', image: message.force_avatar || true },
+        { slot: 2, label: 'Second image', image: message.secondImage },
+        { slot: 3, label: 'Third image', image: message.thirdImage },
+        { slot: 4, label: 'Fourth image', image: message.fourthImage },
+    ].filter(item => item.image);
+    const pairs = [];
+
+    for (let first = 0; first < availableSlots.length; first++) {
+        for (let second = first + 1; second < availableSlots.length; second++) {
+            pairs.push([availableSlots[first], availableSlots[second]]);
+        }
+    }
+
+    if (pairs.length === 0) {
+        return;
+    }
+
+    let selectedPair;
+    const customButtons = pairs.map(([first, second], index) => ({
+        text: `Swap ${first.label} and ${second.label}`,
+        result: POPUP_RESULT.CUSTOM1 + index,
+        action: () => {
+            selectedPair = [first.slot, second.slot];
+        },
+    }));
+
+    await Popup.show.confirm(
+        t`Swap message images.`,
+        t`Choose two image slots to swap.`,
+        {
+            cancelButton: true,
+            customButtons,
+        },
+    );
+
+    if (selectedPair) {
+        swapImageSlots(message, messageBlock, selectedPair[0], selectedPair[1]);
+        await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
+        await saveChatConditional();
+    }
+}
+
+/**
  * Copy message images from one message to another.
  * @param {number} messageId
  * @param {JQuery<HTMLElement>} messageBlock
@@ -1196,18 +1304,27 @@ export async function applyImageToDivs(messageObject, messageDiv, imageType) {
                 secondAvatarImg.attr('src', messageObject.secondImage);
                 secondImageDiv.css('display', 'block');
                 hr.css('display', 'block');
+            } else {
+                secondAvatarImg.attr('src', '');
+                secondImageDiv.css('display', 'none');
             }
             break;
         case 3:
             if (messageObject.portraitImage) {
                 thirdAvatarImg.attr('src', messageObject.portraitImage);
                 thirdPortrait.css('display', 'block');
+            } else {
+                thirdAvatarImg.attr('src', '');
+                thirdPortrait.css('display', 'none');
             }
             break;
         case 4:
             if (messageObject.thirdImage) {
                 thirdImageImg.attr('src', messageObject.thirdImage);
                 thirdImageDiv.css('display', 'block');
+            } else {
+                thirdImageImg.attr('src', '');
+                thirdImageDiv.css('display', 'none');
             }
             break;
         case 5:
@@ -1215,6 +1332,10 @@ export async function applyImageToDivs(messageObject, messageDiv, imageType) {
                 fourthImageImg.attr('src', messageObject.fourthImage);
                 fourthImageDiv.css('display', 'block');
                 portraitHr.css('display', 'block');
+            } else {
+                fourthImageImg.attr('src', '');
+                fourthImageDiv.css('display', 'none');
+                portraitHr.css('display', 'none');
             }
             break;
     }
@@ -3032,6 +3153,18 @@ export function initChatUtilities() {
         const messageBlock = $(this).closest('.mes');
         const messageId = Number(messageBlock.attr('mesid'));
         flipSquareImages(messageId, messageBlock);
+    });
+
+    $(document).on('click', '.mes_flip_horizontally', function () {
+        const messageBlock = $(this).closest('.mes');
+        const messageId = Number(messageBlock.attr('mesid'));
+        flipImagesHorizontally(messageId, messageBlock);
+    });
+
+    $(document).on('click', '.mes_image_swapper', function () {
+        const messageBlock = $(this).closest('.mes');
+        const messageId = Number(messageBlock.attr('mesid'));
+        openImageSwapper(messageId, messageBlock);
     });
 
     $(document).on('click', '.mes_fourth_image', function () {
