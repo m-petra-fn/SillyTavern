@@ -75,9 +75,9 @@ declare global {
         force_avatar?: string;
         original_avatar?: string;
         secondImage?: string;
+        portraitImage?: string;
         thirdImage?: string;
         fourthImage?: string;
-        fifthImage?: string;
         swipes?: string[];
         swipe_info?: SwipeInfo[];
         swipe_id?: number;

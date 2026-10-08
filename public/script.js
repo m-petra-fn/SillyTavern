@@ -2703,15 +2703,15 @@ export function updateMessageElement(mes, { messageId = chat.length - 1, message
         applyImageToDivs(mes, messageElement, 2);
     }
 
-    if (mes.thirdImage) {
+    if (mes.portraitImage) {
         applyImageToDivs(mes, messageElement, 3);
     }
 
-    if (mes.fourthImage) {
+    if (mes.thirdImage) {
         applyImageToDivs(mes, messageElement, 4);
     }
 
-    if (mes.fifthImage) {
+    if (mes.fourthImage) {
         applyImageToDivs(mes, messageElement, 5);
     }
 
