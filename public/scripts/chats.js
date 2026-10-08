@@ -745,10 +745,9 @@ function removeSecondImage(messageId, messageBlock) {
 
     delete message.secondImage;
 
-    // Hide the second image wrapper
-    $(messageBlock).find('.secondImageWrapper').css('display', 'none');
-    $(messageBlock).find('.secondAvatarImg').attr('src', '');
-    $(messageBlock).find('.imageDivider').css('display', 'none');
+    $(messageBlock).find('.secondAvatarDiv').css('display', 'none');
+    $(messageBlock).find('.secondAvatarImage').attr('src', '');
+    $(messageBlock).find('.mesAvatarWrapper .imageDivider').css('display', 'none');
     updateChatImages();
 
     async function updateChatImages() {
@@ -790,6 +789,7 @@ async function assignPortraitImage(messageId, messageBlock) {
         console.log('Uploading third image for message', message, file);
         const sanitizedFileName = await getSanitizedFilename(file.name);
         console.log('Sanitized file name:', sanitizedFileName);
+        clearSquareImages(message, messageBlock);
         message.thirdImage = sanitizedFileName;
 
         await uploadSecondImage(message, 'thirdImage', 'embed_file_input', false);
@@ -797,6 +797,52 @@ async function assignPortraitImage(messageId, messageBlock) {
         await saveChatConditional();
 
         applyImageToDivs(message, messageBlock, 3);
+    }
+}
+
+/**
+ * Adds or edits the fourth or fifth square image of the message.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @param {4|5} imageType
+ * @returns {Promise<void>}
+ */
+async function assignSquareImage(messageId, messageBlock, imageType) {
+    const message = chat[messageId];
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
+    }
+
+    $('#embed_file_input')
+        .off('change')
+        .on('change', parseAndUploadSquareImage)
+        .trigger('click');
+
+    async function parseAndUploadSquareImage(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const isValid = await validateFile(file);
+
+        if (!isValid) {
+            $('#file_form').trigger('reset');
+            return;
+        }
+
+        const imageSource = imageType === 4 ? 'fourthImage' : 'fifthImage';
+        console.log(`Uploading ${imageSource} for message`, message, file);
+        const sanitizedFileName = await getSanitizedFilename(file.name);
+        console.log('Sanitized file name:', sanitizedFileName);
+        clearPortraitImage(message, messageBlock);
+        message[imageSource] = sanitizedFileName;
+
+        await uploadSecondImage(message, imageSource, 'embed_file_input');
+        await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
+        await saveChatConditional();
+
+        applyImageToDivs(message, messageBlock, imageType);
     }
 }
 
@@ -815,14 +861,68 @@ function removeThirdImage(messageId, messageBlock) {
     }
 
     delete message.thirdImage;
-    $(messageBlock).find('.mesPortraitWrapper').css('display', 'none');
     $(messageBlock).find('.thirdPortraitImage').attr('src', '');
+    $(messageBlock).find('.third_portrait').css('display', 'none');
+    $(messageBlock).find('.mesPortraitWrapper .imageDivider').css('display', 'none');
     updateChatImages();
 
     async function updateChatImages() {
         await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
         await saveChatConditional();
     }
+}
+
+/**
+ * Removes the fourth or fifth square image from the message.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @param {4|5} imageType
+ * @returns {Promise<void>}
+ */
+async function removeSquareImage(messageId, messageBlock, imageType) {
+    const message = chat[messageId];
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
+    }
+
+    const imageSource = imageType === 4 ? 'fourthImage' : 'fifthImage';
+    delete message[imageSource];
+    const imageSelector = imageType === 4 ? '.fourthAvatarImage' : '.fifthAvatarImage';
+    $(messageBlock).find(imageSelector).attr('src', '');
+    $(messageBlock).find(imageType === 4 ? '.fourthAvatar' : '.fifthAvatar').css('display', 'none');
+    if (imageType === 5) {
+        $(messageBlock).find('.mesPortraitWrapper .imageDivider').css('display', 'none');
+    }
+    await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
+    await saveChatConditional();
+}
+
+/**
+ * Removes the third image when switching to square images.
+ * @param {ChatMessage} message
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @returns {void}
+ */
+function clearPortraitImage(message, messageBlock) {
+    delete message.thirdImage;
+    $(messageBlock).find('.thirdPortraitImage').attr('src', '');
+    $(messageBlock).find('.third_portrait').css('display', 'none');
+}
+
+/**
+ * Removes square images when switching to a portrait image.
+ * @param {ChatMessage} message
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @returns {void}
+ */
+function clearSquareImages(message, messageBlock) {
+    delete message.fourthImage;
+    delete message.fifthImage;
+    $(messageBlock).find('.fourthAvatarImage, .fifthAvatarImage').attr('src', '');
+    $(messageBlock).find('.fourthAvatar, .fifthAvatar').css('display', 'none');
+    $(messageBlock).find('.mesPortraitWrapper .imageDivider').css('display', 'none');
 }
 
 /**
@@ -847,6 +947,43 @@ async function flipMessageImages(messageId, messageBlock) {
 
     applyImageToDivs(message, messageBlock, 1);
     applyImageToDivs(message, messageBlock, 2);
+    await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
+    await saveChatConditional();
+}
+
+/**
+ * Flips the fourth and fifth images of the message.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @returns {Promise<void>}
+ */
+async function flipSquareImages(messageId, messageBlock) {
+    const message = chat[messageId];
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
+    }
+
+    const fourthImage = message.fourthImage;
+    message.fourthImage = message.fifthImage || null;
+    message.fifthImage = fourthImage || null;
+
+    if (message.fourthImage) {
+        applyImageToDivs(message, messageBlock, 4);
+    } else {
+        $(messageBlock).find('.fourthAvatarImage').attr('src', '');
+        $(messageBlock).find('.fourthAvatar').css('display', 'none');
+    }
+
+    if (message.fifthImage) {
+        applyImageToDivs(message, messageBlock, 5);
+    } else {
+        $(messageBlock).find('.fifthAvatarImage').attr('src', '');
+        $(messageBlock).find('.fifthAvatar').css('display', 'none');
+        $(messageBlock).find('.mesPortraitWrapper .imageDivider').css('display', 'none');
+    }
+
     await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
     await saveChatConditional();
 }
@@ -954,8 +1091,23 @@ async function copyImagesToMessage(sourceMessageId, targetMessageId, messageBloc
     }
 
     if (sourceMessage.thirdImage) {
+        clearSquareImages(targetMessage, messageBlock);
         targetMessage.thirdImage = sourceMessage.thirdImage;
         applyImageToDivs(targetMessage, messageBlock, 3);
+    }
+
+    if (sourceMessage.fourthImage || sourceMessage.fifthImage) {
+        clearPortraitImage(targetMessage, messageBlock);
+        $(messageBlock).find('.fourthAvatarImage, .fifthAvatarImage').attr('src', '');
+        $(messageBlock).find('.fourthAvatar, .fifthAvatar').css('display', 'none');
+        targetMessage.fourthImage = sourceMessage.fourthImage;
+        targetMessage.fifthImage = sourceMessage.fifthImage;
+        if (targetMessage.fourthImage) {
+            applyImageToDivs(targetMessage, messageBlock, 4);
+        }
+        if (targetMessage.fifthImage) {
+            applyImageToDivs(targetMessage, messageBlock, 5);
+        }
     }
 
     await eventSource.emit(event_types.MESSAGE_UPDATED, targetMessageId);
@@ -1009,11 +1161,11 @@ function addSecondImage(messageId, messageBlock) {
  * Applies one of the message's images to its corresponding DOM element.
  * @param {ChatMessage} messageObject
  * @param {JQuery<HTMLElement>} messageDiv
- * @param {1|2|3} imageType 1 for the primary avatar, 2 for the second image, or 3 for the portrait image.
+ * @param {1|2|3|4|5} imageType 1 for the primary avatar, 2 for the second image, 3 for the portrait image, 4 for the fourth image, or 5 for the fifth image.
  * @returns {Promise<void>}
  */
 export async function applyImageToDivs(messageObject, messageDiv, imageType) {
-    if (!messageDiv || !messageObject || ![1, 2, 3].includes(imageType)) {
+    if (!messageDiv || !messageObject || ![1, 2, 3, 4, 5].includes(imageType)) {
         return;
     }
 
@@ -1021,10 +1173,16 @@ export async function applyImageToDivs(messageObject, messageDiv, imageType) {
 
     const mesAvatarWrapper = $(messageDiv).find('.mesAvatarWrapper');
     const originalAvatarImg = $(messageDiv).find('.avatarImage');
-    const secondImageWrapper = $(messageDiv).find('.secondImageWrapper');
-    const secondAvatarImg = $(messageDiv).find('.secondAvatarImg');
+    const secondImageDiv = $(messageDiv).find('.secondAvatarDiv');
+    const secondAvatarImg = $(messageDiv).find('.secondAvatarImage');
     const thirdImageWrapper = $(messageDiv).find('.mesPortraitWrapper');
     const thirdAvatarImg = $(messageDiv).find('.thirdPortraitImage');
+    const thirdPortrait = $(messageDiv).find('.third_portrait');
+    const fourthAvatarImg = $(messageDiv).find('.fourthAvatarImage');
+    const fourthAvatar = $(messageDiv).find('.fourthAvatar');
+    const fifthAvatarImg = $(messageDiv).find('.fifthAvatarImage');
+    const fifthAvatar = $(messageDiv).find('.fifthAvatar');
+    const portraitHr = thirdImageWrapper.find('.imageDivider');
     const hr = $(mesAvatarWrapper).find('.imageDivider');
 
     switch (imageType) {
@@ -1036,14 +1194,27 @@ export async function applyImageToDivs(messageObject, messageDiv, imageType) {
         case 2:
             if (messageObject.secondImage) {
                 secondAvatarImg.attr('src', messageObject.secondImage);
-                secondImageWrapper.css('display', 'unset');
+                secondImageDiv.css('display', 'block');
                 hr.css('display', 'block');
             }
             break;
         case 3:
             if (messageObject.thirdImage) {
                 thirdAvatarImg.attr('src', messageObject.thirdImage);
-                thirdImageWrapper.css('display', 'unset');
+                thirdPortrait.css('display', 'block');
+            }
+            break;
+        case 4:
+            if (messageObject.fourthImage) {
+                fourthAvatarImg.attr('src', messageObject.fourthImage);
+                fourthAvatar.css('display', 'block');
+            }
+            break;
+        case 5:
+            if (messageObject.fifthImage) {
+                fifthAvatarImg.attr('src', messageObject.fifthImage);
+                fifthAvatar.css('display', 'block');
+                portraitHr.css('display', 'block');
             }
             break;
     }
@@ -2851,13 +3022,31 @@ export function initChatUtilities() {
         assignPortraitImage(messageId, messageBlock);
     });
 
+    $(document).on('click', '.mes_fourth_image', function () {
+        const messageBlock = $(this).closest('.mes');
+        const messageId = Number(messageBlock.attr('mesid'));
+        assignSquareImage(messageId, messageBlock, 4);
+    });
+
+    $(document).on('click', '.mes_flip_fourth_fifth', function () {
+        const messageBlock = $(this).closest('.mes');
+        const messageId = Number(messageBlock.attr('mesid'));
+        flipSquareImages(messageId, messageBlock);
+    });
+
+    $(document).on('click', '.mes_fifth_image', function () {
+        const messageBlock = $(this).closest('.mes');
+        const messageId = Number(messageBlock.attr('mesid'));
+        assignSquareImage(messageId, messageBlock, 5);
+    });
+
     $(document).on('click', '.mes_override_avatar', function () {
         const messageBlock = $(this).closest('.mes');
         const messageId = Number(messageBlock.attr('mesid'));
         overrideMessageAvatar(messageId, messageBlock);
     });
 
-    $(document).on('click', '.secondAvatarImg', function () {
+    $(document).on('click', '.secondAvatarImage', function () {
         if (confirm('Remove second image?')) {
             const messageBlock = $(this).closest('.mes');
             const messageId = Number(messageBlock.attr('mesid'));
@@ -2870,6 +3059,22 @@ export function initChatUtilities() {
             const messageBlock = $(this).closest('.mes');
             const messageId = Number(messageBlock.attr('mesid'));
             removeThirdImage(messageId, messageBlock);
+        }
+    });
+
+    $(document).on('click', '.fourthAvatarImage', function () {
+        if (confirm('Remove fourth image?')) {
+            const messageBlock = $(this).closest('.mes');
+            const messageId = Number(messageBlock.attr('mesid'));
+            removeSquareImage(messageId, messageBlock, 4);
+        }
+    });
+
+    $(document).on('click', '.fifthAvatarImage', function () {
+        if (confirm('Remove fifth image?')) {
+            const messageBlock = $(this).closest('.mes');
+            const messageId = Number(messageBlock.attr('mesid'));
+            removeSquareImage(messageId, messageBlock, 5);
         }
     });
 

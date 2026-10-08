@@ -2707,6 +2707,14 @@ export function updateMessageElement(mes, { messageId = chat.length - 1, message
         applyImageToDivs(mes, messageElement, 3);
     }
 
+    if (mes.fourthImage) {
+        applyImageToDivs(mes, messageElement, 4);
+    }
+
+    if (mes.fifthImage) {
+        applyImageToDivs(mes, messageElement, 5);
+    }
+
     return messageElement;
 }
 

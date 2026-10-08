@@ -76,6 +76,8 @@ declare global {
         original_avatar?: string;
         secondImage?: string;
         thirdImage?: string;
+        fourthImage?: string;
+        fifthImage?: string;
         swipes?: string[];
         swipe_info?: SwipeInfo[];
         swipe_id?: number;
