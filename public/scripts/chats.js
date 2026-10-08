@@ -752,6 +752,138 @@ function removeSecondImage(messageId, messageBlock) {
 }
 
 /**
+ * Flip images of the message.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @returns {Promise<void>}
+ */
+async function flipMessageImages(messageId, messageBlock) {
+    const message = chat[messageId];
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
+    }
+
+    const avatarImage = message.force_avatar;
+    const secondImage = message.secondImage;
+
+    message.force_avatar = secondImage || null;
+    message.secondImage = avatarImage || null;
+
+    applyImageToDivs(message, messageBlock, false);
+    applyImageToDivs(message, messageBlock, true);
+    await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
+    await saveChatConditional();
+}
+
+/**
+ * Copy message images from one message to another.
+ * @param {number} messageId
+ * @param {JQuery<HTMLElement>} messageBlock
+ * @returns {Promise<void>}
+ */
+async function copyMessageImages(messageId, messageBlock) {
+    if (chat?.length <= 1) {
+        return;
+    }
+
+    const message = chat[messageId];
+
+    if (!message) {
+        console.warn('Failed to find message with id', messageId);
+        return;
+    }
+
+    let operation = 'id';
+    const customButtons = [];
+
+    const previousButton =
+    {
+        text: 'From previous',
+        result: POPUP_RESULT.AFFIRMATIVE,
+        action: () => {
+            operation = 'previous';
+        }
+    };
+
+    const nextButton =
+    {
+        text: 'From next',
+        result: POPUP_RESULT.AFFIRMATIVE,
+        action: () => {
+            operation = 'next';
+        }
+    };
+
+
+    if (messageId > 0) {
+        customButtons.push(previousButton);
+    }
+
+    if (messageId < chat.length - 1) {
+        customButtons.push(nextButton);
+    }
+
+    const popupResult = await Popup.show.input(
+        t`Copy images from message.`,
+        t`<p>Input the id of the message from which to copy images.</p>`,
+        messageId.toString(),
+        {
+            okButton: 'OK', cancelButton: true, customButtons
+        },
+    );
+
+    if (popupResult) {
+        switch (operation) {
+            case 'previous':
+                const previousMessageId = messageId - 1;
+                if (isValidMessageId(previousMessageId)) {
+                    copyImagesToMessage(previousMessageId, messageId, messageBlock);
+                }
+                break;
+            case 'next':
+                const nextMessageId = messageId + 1;
+                if (isValidMessageId(nextMessageId)) {
+                    copyImagesToMessage(nextMessageId, messageId, messageBlock);
+                }
+                break;
+            case 'id':
+                const sourceMessageId = parseInt(popupResult.trim());
+                if (isValidMessageId(sourceMessageId)) {
+                    copyImagesToMessage(sourceMessageId, messageId, messageBlock);
+                }
+                break;
+        }
+
+    }
+
+}
+
+async function copyImagesToMessage(sourceMessageId, targetMessageId, messageBlock) {
+    const sourceMessage = chat[sourceMessageId];
+    const targetMessage = chat[targetMessageId];
+
+    if (!sourceMessage || !targetMessage) {
+        console.warn('Failed to find messages with ids', sourceMessageId, targetMessageId);
+        return;
+    }
+
+    if (sourceMessage.secondImage) {
+        targetMessage.secondImage = sourceMessage.secondImage;
+        applyImageToDivs(targetMessage, messageBlock, true);
+    }
+
+    if (sourceMessage.force_avatar) {
+        targetMessage.force_avatar = sourceMessage.force_avatar;
+        applyImageToDivs(targetMessage, messageBlock, false);
+    }
+
+    await eventSource.emit(event_types.MESSAGE_UPDATED, targetMessageId);
+    await saveChatConditional();
+}
+
+/**
  * Adds or edits second image of the message.
  * @param {number} messageId
  * @param {JQuery<HTMLElement>} messageBlock
@@ -2602,6 +2734,18 @@ export function initChatUtilities() {
         const messageBlock = $(this).closest('.mes');
         const messageId = Number(messageBlock.attr('mesid'));
         reverseTranslationTags(messageId, messageBlock, changeAll);
+    });
+
+    $(document).on('click', '.mes_copy_images', function () {
+        const messageBlock = $(this).closest('.mes');
+        const messageId = Number(messageBlock.attr('mesid'));
+        copyMessageImages(messageId, messageBlock);
+    });
+
+    $(document).on('click', '.mes_flip_images', function (event) {
+        const messageBlock = $(this).closest('.mes');
+        const messageId = Number(messageBlock.attr('mesid'));
+        flipMessageImages(messageId, messageBlock);
     });
 
     $(document).on('click', '.mes_override_avatar', function () {
