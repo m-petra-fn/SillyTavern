@@ -792,7 +792,7 @@ async function assignPortraitImage(messageId, messageBlock) {
         console.log('Sanitized file name:', sanitizedFileName);
         message.thirdImage = sanitizedFileName;
 
-        await uploadSecondImage(message, 'thirdImage', 'embed_file_input');
+        await uploadSecondImage(message, 'thirdImage', 'embed_file_input', false);
         await eventSource.emit(event_types.MESSAGE_UPDATED, messageId);
         await saveChatConditional();
 
@@ -1054,9 +1054,11 @@ export async function applyImageToDivs(messageObject, messageDiv, imageType) {
  * Upload second image.
  * @param {object} message Message object
  * @param {string} imageSource Message image source property
+ * @param {string} inputId The ID of the file input element.
+ * @param {boolean} autoCrop Whether to automatically crop the image.
  * @returns {Promise<void>} A promise that resolves when file is uploaded.
  */
-export async function uploadSecondImage(message, imageSource, inputId = 'file_form_input') {
+export async function uploadSecondImage(message, imageSource, inputId = 'file_form_input', autoCrop = true) {
     try {
         if (!message) return;
         if (!message.extra) message.extra = {};
@@ -1066,7 +1068,7 @@ export async function uploadSecondImage(message, imageSource, inputId = 'file_fo
         if (!file) return;
 
         const fileBase64 = await getBase64Async(file);
-        const squareImage = await createThumbnail(fileBase64, null, null, 'image/webp', true);
+        const squareImage = await createThumbnail(fileBase64, null, null, 'image/webp', autoCrop);
         let base64Data = squareImage.split(',')[1];
 
         // If file is image
