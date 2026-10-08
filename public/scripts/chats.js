@@ -655,11 +655,10 @@ async function changeMessageQuotes(messageId, messageBlock) {
         t`Change message quotes.`,
         t`<p>Choose the type of quote operation to perform.</p>`,
         {
-            okButton: 'Single', cancelButton: false, customButtons: [
+            okButton: 'Single', cancelButton: true, customButtons: [
                 {
                     text: 'All curly',
                     result: POPUP_RESULT.AFFIRMATIVE,
-                    appendAtEnd: true,
                     action: () => {
                         changeAll = true;
                     }
@@ -668,9 +667,9 @@ async function changeMessageQuotes(messageId, messageBlock) {
         },
     );
     
-    console.log('Changing quotes of message', messageId, changeAll);
-
+    
     if (popupResult) {
+        console.log('Changing quotes of message', messageId, changeAll);
         if (changeAll) {
             $('.mes').each(function () {
                 const messageId = parseInt($(this).attr('mesid'));
@@ -684,8 +683,12 @@ async function changeMessageQuotes(messageId, messageBlock) {
 
 }
 
+function isValidMessageId(messageId) {
+    return ![null, undefined, NaN].includes(messageId) && !!chat[messageId];
+}
+
 function changeQuotesOfMessage(message, messageId) {
-    if (!message || !messageId) {
+    if (!message || !isValidMessageId(messageId)) {
         return;
     }
     
@@ -719,7 +722,7 @@ function changeQuotesOfMessage(message, messageId) {
 }
 
 async function updateChat(message, messageId) {
-    if (message && messageId) {
+    if (message && isValidMessageId(messageId)) {
         console.log('Updating chat message', messageId);
         updateMessageBlock(messageId, message, { rerenderMessage: true });
         await saveChatConditional();
