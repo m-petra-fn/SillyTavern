@@ -2700,7 +2700,19 @@ export function updateMessageElement(mes, { messageId = chat.length - 1, message
     }
 
     if (mes.secondImage) {
-        applyImageToDivs(mes, messageElement);
+        applyImageToDivs(mes, messageElement, 2);
+    }
+
+    if (mes.portraitImage) {
+        applyImageToDivs(mes, messageElement, 3);
+    }
+
+    if (mes.thirdImage) {
+        applyImageToDivs(mes, messageElement, 4);
+    }
+
+    if (mes.fourthImage) {
+        applyImageToDivs(mes, messageElement, 5);
     }
 
     return messageElement;

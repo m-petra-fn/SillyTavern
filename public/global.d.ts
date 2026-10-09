@@ -74,6 +74,11 @@ declare global {
         is_system?: boolean;
         force_avatar?: string;
         original_avatar?: string;
+        secondImage?: string;
+        portraitImage?: string;
+        thirdImage?: string;
+        fourthImage?: string;
+        imageMirrors?: Record<string, { horizontal?: boolean; vertical?: boolean }>;
         swipes?: string[];
         swipe_info?: SwipeInfo[];
         swipe_id?: number;

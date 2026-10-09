@@ -7406,10 +7406,8 @@
                         <img class="avatarImage" src="">
                     </div>
                     <hr class="imageDivider" style="display: none;" />
-                    <div class="secondImageWrapper" style="display: none;">
-                        <div class="secondAvatarDiv">
-                            <img src="" class="secondAvatarImg" style="cursor: pointer">
-                        </div>
+                    <div class="secondAvatarDiv" style="display: none;">
+                        <img src="" class="secondAvatarImage" style="cursor: pointer">
                     </div>
                 </div>
                 <div class="swipe_left fa-solid fa-chevron-left"></div>
@@ -7428,9 +7426,9 @@
                         <div class="mes_buttons">
                             <div title="Message Actions" class="mes_button extraMesButtonsHint fa-solid fa-ellipsis" data-i18n="[title]Message Actions"></div>
                             <div class="extraMesButtons">
-                                <div title="Translate message" class="mes_button mes_translate fa-solid fa-language" data-i18n="[title]Translate message"></div>
+                                <!-- <div title="Translate message" class="mes_button mes_translate fa-solid fa-language" data-i18n="[title]Translate message"></div>
                                 <div title="Generate Image" class="mes_button sd_message_gen fa-solid fa-paintbrush" data-i18n="[title]Generate Image"></div>
-                                <div title="Narrate" class="mes_button mes_narrate fa-solid fa-bullhorn" data-i18n="[title]Narrate"></div>
+                                <div title="Narrate" class="mes_button mes_narrate fa-solid fa-bullhorn" data-i18n="[title]Narrate"></div> -->
                                 <div title="Prompt" class="mes_button mes_prompt fa-solid fa-square-poll-horizontal " data-i18n="[title]Prompt" style="display: none;"></div>
                                 <div title="Exclude message from prompts" class="mes_button mes_hide fa-solid fa-eye" data-i18n="[title]Exclude message from prompts"></div>
                                 <div title="Include message in prompts" class="mes_button mes_unhide fa-solid fa-eye-slash" data-i18n="[title]Include message in prompts"></div>
@@ -7443,13 +7441,24 @@
                                 <div title="Copy" class="mes_button mes_copy fa-solid fa-copy " data-i18n="[title]Copy"></div>
                             </div>
                             <div data-tooltip="Click to open checkpoint chat&#10;Shift+Click to replace the existing checkpoint with a new one" class="mes_button mes_bookmark fa-solid fa-flag" data-i18n="[data-tooltip]Open checkpoint chat&#10;Shift+Click to replace the existing checkpoint with a new one"></div>
+                            <div class="mes_button mes_button_separator fa-solid fa-grip-lines-vertical"></div>
                             <div title="Change message title" class="mes_button mes_change_title fa-solid fa-map-signs"></div>
                             <div title="Change message quotes" class="mes_button mes_change_quotes fa-solid fa-quote-right"></div>
                             <div title="Reverse translation tags" class="mes_button mes_reverse_translation fa-solid fa-language"></div>
                             <div title="Copy images from other message" class="mes_button mes_copy_images fa-solid fa-folder-tree"></div>
+                            <div class="mes_button mes_button_separator fa-solid fa-grip-lines-vertical"></div>
                             <div title="Override avatar with image" class="mes_button mes_override_avatar fa-solid fa-image"></div>
-                            <div title="Flip first and second image" class="mes_button mes_flip_images fa-solid fa-right-left"></div>
+                            <div title="Flip first and second image" class="mes_button mes_flip_images fa-solid fa-up-down"></div>
                             <div title="Add second image" class="mes_button mes_second_image fa-solid fa-camera-retro"></div>
+                            <div class="mes_button mes_button_separator fa-solid fa-grip-lines-vertical"></div>
+                            <div title="Assign portrait image" class="mes_button mes_portrait_image fa-solid fa-image-portrait"></div>
+                            <div title="Assign third image" class="mes_button mes_third_image fa-solid fa-image"></div>
+                            <div title="Flip third and fourth images" class="mes_button mes_flip_third_fourth fa-solid fa-up-down"></div>
+                            <div title="Assign fourth image" class="mes_button mes_fourth_image fa-solid fa-camera-retro"></div>
+                            <div class="mes_button mes_button_separator fa-solid fa-grip-lines-vertical"></div>
+                            <div title="Flip horizontally" class="mes_button mes_flip_horizontally fa-solid fa-right-left"></div>
+                            <div title="Image swapper" class="mes_button mes_image_swapper fa-solid fa-group-arrows-rotate"></div>
+                            <div title="Image mirroring" class="mes_button mes_image_mirroring fa-solid fa-arrows-turn-to-dots"></div>
                             <div title="Edit" class="mes_button mes_edit fa-solid fa-pencil " data-i18n="[title]Edit"></div>
                         </div>
                         <div class="mes_edit_buttons">
@@ -7485,6 +7494,18 @@
                     <div class="mes_media_wrapper"></div>
                     <div class="mes_file_wrapper"></div>
                     <div class="mes_bias"></div>
+                </div>
+                <div class="mesExtraImagesWrapper" style="display: block;">
+                    <div class="portrait" style="display: none;">
+                        <img class="portraitImage" src="" style="cursor: pointer">
+                    </div>
+                    <div class="thirdAvatar" style="display: none;">
+                        <img class="thirdAvatarImage" src="">
+                    </div>
+                    <hr class="imageDivider" style="display: none;" />
+                    <div class="fourthAvatar" style="display: none;">
+                        <img src="" class="fourthAvatarImage" style="cursor: pointer">
+                    </div>
                 </div>
                 <div class="flex-container swipeRightBlock flexFlowColumn flexNoGap">
                     <div class="swipe_right fa-solid fa-chevron-right"></div>
