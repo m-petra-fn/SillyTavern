@@ -85,9 +85,10 @@ async function requestAssembledPrompt() {
         };
 
         if (context.eventSource && context.eventTypes) {
-            if (isChat && context.eventTypes.CHAT_COMPLETION_PROMPT_READY) {
+            if (context.eventTypes.CHAT_COMPLETION_PROMPT_READY) {
                 context.eventSource.once(context.eventTypes.CHAT_COMPLETION_PROMPT_READY, onChatPromptReady);
-            } else if (!isChat && context.eventTypes.GENERATE_AFTER_COMBINE_PROMPTS) {
+            }
+            if (context.eventTypes.GENERATE_AFTER_COMBINE_PROMPTS) {
                 context.eventSource.once(context.eventTypes.GENERATE_AFTER_COMBINE_PROMPTS, onTextPromptReady);
             }
         }
@@ -522,7 +523,6 @@ jQuery(async () => {
     if (context?.eventSource && context?.eventTypes) {
         const syncEvents = [
             context.eventTypes.APP_READY,
-            context.eventTypes.CHAT_CHANGED,
             context.eventTypes.MESSAGE_SENT,
             context.eventTypes.MESSAGE_RECEIVED,
             context.eventTypes.MESSAGE_UPDATED,
@@ -539,6 +539,14 @@ jQuery(async () => {
                     syncState();
                 });
             }
+        }
+
+        if (context.eventTypes.CHAT_CHANGED) {
+            context.eventSource.on(context.eventTypes.CHAT_CHANGED, async () => {
+                lastAssembledPrompt = null;
+                await syncState();
+                requestAssembledPrompt().then(() => syncState()).catch(() => {});
+            });
         }
 
         // Continuous prompt capture (PromptInspector pattern)

@@ -134,7 +134,7 @@ async function processBridgeRequest(req, res, pathname, body) {
             recentChat: Array.isArray(body?.recentChat) ? body.recentChat : [],
             activeLore: body?.activeLore || null,
             promptSettings: body?.promptSettings || null,
-            assembledPrompt: (body?.assembledPrompt?.messages?.length >= VERIFIED_PROMPT.length) ? body.assembledPrompt : (latestState.assembledPrompt || { type: 'chat_completion', messages: VERIFIED_PROMPT, timestamp: Date.now() })
+            assembledPrompt: body?.assembledPrompt || (body?.chatId === latestState.chatId ? latestState.assembledPrompt : null)
         };
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, receivedAt: latestState.lastSync }));
