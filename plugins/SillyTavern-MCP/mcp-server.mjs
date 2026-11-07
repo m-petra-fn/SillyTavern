@@ -49,17 +49,60 @@ function extractContextSections(promptObj) {
         : null;
 
     if (messages) {
+        let currentTag = null;
         for (const m of messages) {
-            const content = String(m.content || '');
-            if (content.includes('<writing_instructions>')) {
+            const content = String(m.content || '').trim();
+
+            if (content.includes('<writing_instructions>') && content.includes('</writing_instructions>')) {
                 const match = content.match(/<writing_instructions>([\s\S]*?)<\/writing_instructions>/i);
-                instructions = match ? match[1].trim() : content.replace(/<\/?writing_instructions>/gi, '').trim();
-            } else if (content.includes('<world_info>')) {
+                instructions = match ? match[1].trim() : instructions;
+                continue;
+            }
+            if (content.includes('<world_info>') && content.includes('</world_info>')) {
                 const match = content.match(/<world_info>([\s\S]*?)<\/world_info>/i);
-                lore = match ? match[1].trim() : content.replace(/<\/?world_info>/gi, '').trim();
-            } else if (content.includes('<scenario>')) {
+                lore = match ? match[1].trim() : lore;
+                continue;
+            }
+            if (content.includes('<scenario>') && content.includes('</scenario>')) {
                 const match = content.match(/<scenario>([\s\S]*?)<\/scenario>/i);
-                scenario = match ? match[1].trim() : content.replace(/<\/?scenario>/gi, '').trim();
+                scenario = match ? match[1].trim() : scenario;
+                continue;
+            }
+
+            if (/^<writing_instructions>/i.test(content)) {
+                currentTag = 'writing_instructions';
+                const stripped = content.replace(/^<writing_instructions>/i, '').trim();
+                if (stripped) instructions = (instructions ? instructions + '\n\n' : '') + stripped;
+                continue;
+            }
+            if (/^<world_info>/i.test(content)) {
+                currentTag = 'world_info';
+                const stripped = content.replace(/^<world_info>/i, '').trim();
+                if (stripped) lore = (lore ? lore + '\n\n' : '') + stripped;
+                continue;
+            }
+            if (/^<scenario>/i.test(content)) {
+                currentTag = 'scenario';
+                const stripped = content.replace(/^<scenario>/i, '').trim();
+                if (stripped) scenario = (scenario ? scenario + '\n\n' : '') + stripped;
+                continue;
+            }
+
+            if (currentTag && content.includes(`</${currentTag}>`)) {
+                const stripped = content.replace(new RegExp(`</${currentTag}>.*$`, 'i'), '').trim();
+                if (stripped) {
+                    if (currentTag === 'writing_instructions') instructions = (instructions ? instructions + '\n\n' : '') + stripped;
+                    else if (currentTag === 'world_info') lore = (lore ? lore + '\n\n' : '') + stripped;
+                    else if (currentTag === 'scenario') scenario = (scenario ? scenario + '\n\n' : '') + stripped;
+                }
+                currentTag = null;
+                continue;
+            }
+
+            if (currentTag) {
+                if (currentTag === 'writing_instructions') instructions = (instructions ? instructions + '\n\n' : '') + content;
+                else if (currentTag === 'world_info') lore = (lore ? lore + '\n\n' : '') + content;
+                else if (currentTag === 'scenario') scenario = (scenario ? scenario + '\n\n' : '') + content;
             }
         }
     } else if (typeof promptObj?.prompt === 'string') {
