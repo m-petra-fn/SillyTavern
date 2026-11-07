@@ -44,52 +44,54 @@ async function requestAssembledPrompt() {
         return lastAssembledPrompt;
     }
 
-    const isChat = context.mainApi === 'openai';
-
     return new Promise(async (resolve) => {
         let finished = false;
 
-        const onChatPromptReady = (data) => {
+        const onPromptReady = (data) => {
             if (finished) return;
+            const promptContent = data?.prompt ?? data?.chat;
+            if (!promptContent) return;
             finished = true;
-            lastAssembledPrompt = {
-                type: 'chat_completion',
-                messages: data.chat,
-                timestamp: Date.now()
-            };
-            cleanup();
-            resolve(lastAssembledPrompt);
-        };
-
-        const onTextPromptReady = (data) => {
-            if (finished) return;
-            finished = true;
-            lastAssembledPrompt = {
-                type: 'text_completion',
-                prompt: data.prompt,
-                timestamp: Date.now()
-            };
+            if (Array.isArray(promptContent)) {
+                lastAssembledPrompt = {
+                    type: 'chat_completion',
+                    messages: promptContent,
+                    timestamp: Date.now()
+                };
+            } else if (typeof promptContent === 'string') {
+                lastAssembledPrompt = {
+                    type: 'text_completion',
+                    prompt: promptContent,
+                    timestamp: Date.now()
+                };
+            }
             cleanup();
             resolve(lastAssembledPrompt);
         };
 
         const cleanup = () => {
             if (context.eventSource && context.eventTypes) {
+                if (context.eventTypes.GENERATE_AFTER_DATA) {
+                    context.eventSource.removeListener(context.eventTypes.GENERATE_AFTER_DATA, onPromptReady);
+                }
                 if (context.eventTypes.CHAT_COMPLETION_PROMPT_READY) {
-                    context.eventSource.removeListener(context.eventTypes.CHAT_COMPLETION_PROMPT_READY, onChatPromptReady);
+                    context.eventSource.removeListener(context.eventTypes.CHAT_COMPLETION_PROMPT_READY, onPromptReady);
                 }
                 if (context.eventTypes.GENERATE_AFTER_COMBINE_PROMPTS) {
-                    context.eventSource.removeListener(context.eventTypes.GENERATE_AFTER_COMBINE_PROMPTS, onTextPromptReady);
+                    context.eventSource.removeListener(context.eventTypes.GENERATE_AFTER_COMBINE_PROMPTS, onPromptReady);
                 }
             }
         };
 
         if (context.eventSource && context.eventTypes) {
+            if (context.eventTypes.GENERATE_AFTER_DATA) {
+                context.eventSource.once(context.eventTypes.GENERATE_AFTER_DATA, onPromptReady);
+            }
             if (context.eventTypes.CHAT_COMPLETION_PROMPT_READY) {
-                context.eventSource.once(context.eventTypes.CHAT_COMPLETION_PROMPT_READY, onChatPromptReady);
+                context.eventSource.once(context.eventTypes.CHAT_COMPLETION_PROMPT_READY, onPromptReady);
             }
             if (context.eventTypes.GENERATE_AFTER_COMBINE_PROMPTS) {
-                context.eventSource.once(context.eventTypes.GENERATE_AFTER_COMBINE_PROMPTS, onTextPromptReady);
+                context.eventSource.once(context.eventTypes.GENERATE_AFTER_COMBINE_PROMPTS, onPromptReady);
             }
         }
 
@@ -223,6 +225,7 @@ async function syncState() {
         group: groupData,
         userName: context.name1 || 'User',
         chatId: context.chatId || null,
+        scenario: context.chatMetadata?.scenario || characterData?.scenario || '',
         generationActive: !!context.onlineStatus,
         recentChat,
         promptSettings,
@@ -557,6 +560,27 @@ jQuery(async () => {
         }
 
         // Continuous prompt capture (PromptInspector pattern)
+        if (context.eventTypes.GENERATE_AFTER_DATA) {
+            context.eventSource.on(context.eventTypes.GENERATE_AFTER_DATA, (data) => {
+                const promptContent = data?.prompt ?? data?.chat;
+                if (!promptContent) return;
+                if (Array.isArray(promptContent) && promptContent.length > 0) {
+                    lastAssembledPrompt = {
+                        type: 'chat_completion',
+                        messages: promptContent,
+                        timestamp: Date.now()
+                    };
+                    syncState();
+                } else if (typeof promptContent === 'string' && promptContent.length > 0) {
+                    lastAssembledPrompt = {
+                        type: 'text_completion',
+                        prompt: promptContent,
+                        timestamp: Date.now()
+                    };
+                    syncState();
+                }
+            });
+        }
         if (context.eventTypes.CHAT_COMPLETION_PROMPT_READY) {
             context.eventSource.on(context.eventTypes.CHAT_COMPLETION_PROMPT_READY, (data) => {
                 if (data?.chat && Array.isArray(data.chat) && data.chat.length > 0) {

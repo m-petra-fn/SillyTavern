@@ -39,7 +39,7 @@ function resolveImagePath(rawPath) {
 /**
  * Extract context sections (Instructions, Lore, Scenario) from assembled prompt
  */
-function extractContextSections(promptObj) {
+function extractContextSections(promptObj, fallbackData = {}) {
     let instructions = '';
     let lore = '';
     let scenario = '';
@@ -113,6 +113,10 @@ function extractContextSections(promptObj) {
         if (loreMatch) lore = loreMatch[1].trim();
         const scenMatch = p.match(/<scenario>([\s\S]*?)<\/scenario>/i);
         if (scenMatch) scenario = scenMatch[1].trim();
+    }
+
+    if (!scenario && fallbackData) {
+        scenario = fallbackData.scenario || fallbackData.character?.scenario || fallbackData.group?.scenario || '';
     }
 
     return { instructions, lore, scenario };
@@ -332,24 +336,41 @@ async function sendAction(type, args = {}) {
     return json.result;
 }
 
+function isValidPromptObject(obj) {
+    if (!obj) return false;
+    if (obj.type === 'chat_completion' && Array.isArray(obj.messages) && obj.messages.length > 0) return true;
+    if (obj.type === 'text_completion' && typeof obj.prompt === 'string' && obj.prompt.trim().length > 0) return true;
+    return false;
+}
+
 /**
- * Helper to get prompt object from action or cached state
+ * Helper to get prompt object and session metadata
  */
-async function getAssembledPromptObject() {
+async function getContextData() {
     let fullData = null;
     try {
         fullData = await sendAction('get_full_context', {});
     } catch (_) {}
 
-    if (!fullData?.assembledPrompt) {
-        const stateRes = await fetchState();
-        fullData = {
-            assembledPrompt: stateRes.data?.assembledPrompt,
-            group: stateRes.data?.group,
-            character: stateRes.data?.character
-        };
+    const stateRes = await fetchState().catch(() => ({}));
+    const stateData = stateRes?.data || {};
+
+    let promptObj = null;
+    if (isValidPromptObject(fullData?.assembledPrompt)) {
+        promptObj = fullData.assembledPrompt;
+    } else if (isValidPromptObject(stateData.assembledPrompt)) {
+        promptObj = stateData.assembledPrompt;
     }
-    return fullData?.assembledPrompt || null;
+
+    return {
+        promptObj,
+        fallbackData: {
+            scenario: stateData.scenario,
+            group: fullData?.group || stateData.group,
+            character: fullData?.character || stateData.character,
+            chatId: stateData.chatId
+        }
+    };
 }
 
 /**
@@ -445,17 +466,8 @@ function enrichMessagesWithImages(messages, chatId) {
 async function handleToolCall(name, args) {
     switch (name) {
         case 'get_full_context': {
-            const promptObj = await getAssembledPromptObject();
-            if (!promptObj) {
-                return {
-                    content: [{
-                        type: 'text',
-                        text: '⚠️ Could not assemble prompt context. Make sure SillyTavern is open in your browser.'
-                    }]
-                };
-            }
-
-            const { instructions, lore, scenario } = extractContextSections(promptObj);
+            const { promptObj, fallbackData } = await getContextData();
+            const { instructions, lore, scenario } = extractContextSections(promptObj, fallbackData);
             const sections = [];
             if (instructions) {
                 sections.push(`=== SECTION: WRITING INSTRUCTIONS ===\n${instructions}`);
@@ -475,8 +487,8 @@ async function handleToolCall(name, args) {
         }
 
         case 'get_current_lore': {
-            const promptObj = await getAssembledPromptObject();
-            const { lore } = extractContextSections(promptObj);
+            const { promptObj, fallbackData } = await getContextData();
+            const { lore } = extractContextSections(promptObj, fallbackData);
             const text = lore
                 ? `=== SECTION: ACTIVE LORE ===\n${lore}`
                 : 'No active lore found in current prompt.';
@@ -484,8 +496,8 @@ async function handleToolCall(name, args) {
         }
 
         case 'get_chat_scenario': {
-            const promptObj = await getAssembledPromptObject();
-            const { scenario } = extractContextSections(promptObj);
+            const { promptObj, fallbackData } = await getContextData();
+            const { scenario } = extractContextSections(promptObj, fallbackData);
             const text = scenario
                 ? `=== SECTION: SCENARIO ===\n${scenario}`
                 : 'No active scenario found in current prompt.';
@@ -493,8 +505,8 @@ async function handleToolCall(name, args) {
         }
 
         case 'get_writing_instructions': {
-            const promptObj = await getAssembledPromptObject();
-            const { instructions } = extractContextSections(promptObj);
+            const { promptObj, fallbackData } = await getContextData();
+            const { instructions } = extractContextSections(promptObj, fallbackData);
             const text = instructions
                 ? `=== SECTION: WRITING INSTRUCTIONS ===\n${instructions}`
                 : 'No writing instructions found in current prompt.';
@@ -502,10 +514,10 @@ async function handleToolCall(name, args) {
         }
 
         case 'get_current_context': {
-            const stateRes = await fetchState();
-            const data = stateRes.data || {};
-            const promptObj = await getAssembledPromptObject();
-            const { lore } = extractContextSections(promptObj);
+            const { promptObj, fallbackData } = await getContextData();
+            const stateRes = await fetchState().catch(() => ({}));
+            const data = stateRes?.data || {};
+            const { lore } = extractContextSections(promptObj, fallbackData);
 
             // Extract titles from active lore
             const loreTitles = lore
