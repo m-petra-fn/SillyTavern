@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import readline from 'node:readline';
 import fs from 'node:fs';
+import path from 'node:path';
 
 // Default to dedicated bridge port 8005, with fallback options
 const ST_BASE = process.env.SILLYTAVERN_URL || `http://127.0.0.1:${process.env.SILLYTAVERN_MCP_PORT || '8005'}`;
