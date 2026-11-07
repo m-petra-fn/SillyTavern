@@ -4,6 +4,8 @@ const EXTENSION_PATH = 'scripts/extensions/third-party/SillyTavern-MCP';
 let activeApiBase = 'http://127.0.0.1:8005';
 let isPolling = false;
 let isConnected = false;
+let lastSyncedName = null;
+let lastSyncTimestamp = null;
 let pollIntervalId = null;
 
 // Stores the last assembled prompt (as captured by prompt ready events, like PromptInspector)
@@ -215,7 +217,6 @@ async function syncState() {
         chatId: context.chatId || null,
         generationActive: !!context.onlineStatus,
         recentChat,
-        activeLore,
         promptSettings,
         assembledPrompt: lastAssembledPrompt
     };
@@ -228,7 +229,7 @@ async function syncState() {
         });
 
         if (res.ok) {
-            updateStatusUI(true, characterData?.name || groupData?.name);
+            updateStatusUI(true, groupData?.name || characterData?.name || 'Connected');
         } else {
             await resolveApiBase();
             updateStatusUI(false);
@@ -244,16 +245,21 @@ async function syncState() {
  */
 function updateStatusUI(connected, charName) {
     isConnected = connected;
+    if (charName) lastSyncedName = charName;
+    if (connected) lastSyncTimestamp = Date.now();
+
     const statusEl = $('#mcp_bridge_status');
     const charEl = $('#mcp_active_character');
     const syncEl = $('#mcp_last_sync');
 
-    if (connected) {
-        statusEl.text('Connected').removeClass('mcp-badge-disconnected').addClass('mcp-badge-connected');
-        charEl.text(charName || 'None selected');
-        syncEl.text(new Date().toLocaleTimeString());
-    } else {
-        statusEl.text('Bridge Inactive').removeClass('mcp-badge-connected').addClass('mcp-badge-disconnected');
+    if (statusEl.length) {
+        if (connected) {
+            statusEl.text('Connected').removeClass('mcp-badge-disconnected').addClass('mcp-badge-connected');
+            charEl.text(lastSyncedName || 'Connected');
+            syncEl.text(new Date(lastSyncTimestamp || Date.now()).toLocaleTimeString());
+        } else {
+            statusEl.text('Bridge Inactive').removeClass('mcp-badge-connected').addClass('mcp-badge-disconnected');
+        }
     }
 }
 
@@ -476,6 +482,8 @@ jQuery(async () => {
     try {
         const templateHtml = await $.get(`/${EXTENSION_PATH}/settings.html`);
         $('#extensions_settings').append(templateHtml);
+        // Refresh UI badge with current connection status immediately
+        updateStatusUI(isConnected, lastSyncedName);
     } catch (e) {
         console.warn('[MCP Bridge] Could not load settings template HTML:', e);
     }
@@ -487,7 +495,7 @@ jQuery(async () => {
     $('#mcp_btn_sync_now').on('click', async () => {
         toastr.info('Syncing SillyTavern state to MCP Bridge...');
         await resolveApiBase();
-        await requestAssembledPrompt();
+        requestAssembledPrompt().catch(() => {});
         await syncState();
         toastr.success(isConnected ? 'Bridge is online and synced!' : 'Server plugin not reachable. Check plugins/SillyTavern-MCP.');
     });
@@ -500,6 +508,7 @@ jQuery(async () => {
             if (data.ok) {
                 toastr.success(`MCP Bridge active! Active: ${data.activeCharacter || 'Connected'}`);
                 updateStatusUI(true, data.activeCharacter);
+                syncState();
             } else {
                 toastr.warning('Plugin responded but status is not ok.');
             }
@@ -511,11 +520,26 @@ jQuery(async () => {
 
     const context = SillyTavern.getContext();
     if (context?.eventSource && context?.eventTypes) {
-        context.eventSource.on(context.eventTypes.CHAT_CHANGED, syncState);
-        context.eventSource.on(context.eventTypes.MESSAGE_SENT, syncState);
-        context.eventSource.on(context.eventTypes.MESSAGE_RECEIVED, syncState);
-        context.eventSource.on(context.eventTypes.CHARACTER_EDITED, syncState);
-        context.eventSource.on(context.eventTypes.PERSONA_CHANGED, syncState);
+        const syncEvents = [
+            context.eventTypes.APP_READY,
+            context.eventTypes.CHAT_CHANGED,
+            context.eventTypes.MESSAGE_SENT,
+            context.eventTypes.MESSAGE_RECEIVED,
+            context.eventTypes.MESSAGE_UPDATED,
+            context.eventTypes.MESSAGE_DELETED,
+            context.eventTypes.MESSAGE_SWIPED,
+            context.eventTypes.CHARACTER_EDITED,
+            context.eventTypes.GROUP_UPDATED,
+            context.eventTypes.PERSONA_CHANGED
+        ];
+
+        for (const ev of syncEvents) {
+            if (ev) {
+                context.eventSource.on(ev, () => {
+                    syncState();
+                });
+            }
+        }
 
         // Continuous prompt capture (PromptInspector pattern)
         if (context.eventTypes.CHAT_COMPLETION_PROMPT_READY) {
@@ -526,6 +550,7 @@ jQuery(async () => {
                         messages: data.chat,
                         timestamp: Date.now()
                     };
+                    syncState();
                 }
             });
         }
@@ -537,15 +562,18 @@ jQuery(async () => {
                         prompt: data.prompt,
                         timestamp: Date.now()
                     };
+                    syncState();
                 }
             });
         }
     }
 
-    // Initial state sync after UI loads
+    // Immediate initial sync (run right away, then again once chat is loaded)
+    await syncState();
+    setTimeout(syncState, 1000);
     setTimeout(async () => {
-        await requestAssembledPrompt();
-        await syncState();
+        requestAssembledPrompt().catch(() => {});
+        syncState();
     }, 2500);
 
     // Regular interval state sync
@@ -553,9 +581,9 @@ jQuery(async () => {
         if ($('#mcp_auto_sync').length === 0 || $('#mcp_auto_sync').is(':checked')) {
             syncState();
         }
-    }, 5000);
+    }, 4000);
 
     // Action polling loop
     pollIntervalId = setInterval(pollActions, 750);
-    console.log('[SillyTavern-MCP] Extension initialized with PromptInspector & GuidedGenerations support.');
+    console.log('[SillyTavern-MCP] Extension initialized with PromptInspector & auto-sync support.');
 });
