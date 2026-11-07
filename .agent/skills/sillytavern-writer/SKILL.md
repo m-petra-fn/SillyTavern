@@ -62,6 +62,7 @@ All SillyTavern context retrieval and posting tools return clean, structured tex
 | `get_chat_scenario` | Retrieves only the active Scenario section for the current chat. | Checking scene setup or overarching plot scenario. |
 | `get_writing_instructions` | Retrieves only the system writing instructions and style guidelines. | Confirming perspective, dialogue formatting, and word count targets. |
 | `get_chat_history` | Fetches recent chat messages in clean structured text, including message numbers, sender names, swipe info, and **attached image filenames and disk paths**. | Reviewing dialogue, narrative continuity, and visual attachments. |
+| `get_chat_history_for_swipe` | Fetches recent chat messages **excluding the very last message**. | Preparing context for writing an alternative swipe (/swipes-add) without including the message being swiped. |
 | `get_current_context` | Retrieves chat ID, group name, container character, active lore titles, and latest message preview. | Fast status check of the active chat. |
 | `execute_slash_command` | Executes any SillyTavern slash command directly. | Executing `/sendas`, `/swipes-add`, or `/message-edit`. |
 | `post_character_message` | Helper wrapper around the core commands. | Convenient tool call supporting `swipe: true` (`/swipes-add`) or `append: true` (`/message-edit append=true`). |

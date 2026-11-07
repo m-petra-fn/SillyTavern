@@ -550,7 +550,7 @@ jQuery(async () => {
 
     // Regular interval state sync
     setInterval(() => {
-        if ($('#mcp_auto_sync').is(':checked')) {
+        if ($('#mcp_auto_sync').length === 0 || $('#mcp_auto_sync').is(':checked')) {
             syncState();
         }
     }, 5000);

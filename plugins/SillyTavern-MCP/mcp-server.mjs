@@ -133,6 +133,20 @@ const TOOLS = [
         }
     },
     {
+        name: 'get_chat_history_for_swipe',
+        description: 'Get chat history excluding the very last message in the session. Use this when writing an alternative swipe for the latest message so that the message being swiped does not contaminate the context.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                limit: {
+                    type: 'integer',
+                    description: 'Number of prior messages to retrieve (default: 30, max: 100)',
+                    default: 30
+                }
+            }
+        }
+    },
+    {
         name: 'post_character_message',
         description: 'Post a message as a specific character into the active chat log (supports new message via /sendas, new swipe via /swipes-add, or continue/append via /message-edit).',
         inputSchema: {
@@ -445,7 +459,42 @@ async function handleToolCall(name, args) {
             const stateRes = await fetchState();
             const data = stateRes.data || {};
             const limit = Math.min(Number(args?.limit) || 30, 100);
-            const rawMessages = (data.recentChat || []).slice(-limit);
+            let allMessages = Array.isArray(data.recentChat) ? data.recentChat : [];
+
+            if (allMessages.length === 0) {
+                try {
+                    const chatDir = 'C:/Petra/Jogos/SillyTavern/data/default-user/group chats';
+                    if (fs.existsSync(chatDir)) {
+                        const files = fs.readdirSync(chatDir).filter(f => f.endsWith('.jsonl'));
+                        if (files.length > 0) {
+                            files.sort((a, b) => fs.statSync(path.join(chatDir, b)).mtimeMs - fs.statSync(path.join(chatDir, a)).mtimeMs);
+                            const lines = fs.readFileSync(path.join(chatDir, files[0]), 'utf8').trim().split('\n').slice(1);
+                            allMessages = lines.map(l => {
+                                try {
+                                    const parsed = JSON.parse(l);
+                                    return {
+                                        name: parsed.name,
+                                        is_user: parsed.is_user,
+                                        is_system: parsed.is_system,
+                                        send_date: parsed.send_date,
+                                        message: parsed.mes || parsed.message,
+                                        swipe_id: parsed.swipe_id,
+                                        swipes: parsed.swipes?.length || 1,
+                                        force_avatar: parsed.force_avatar,
+                                        secondImage: parsed.secondImage,
+                                        thirdImage: parsed.thirdImage,
+                                        fourthImage: parsed.fourthImage,
+                                        portraitImage: parsed.portraitImage,
+                                        extra: parsed.extra
+                                    };
+                                } catch (_) { return null; }
+                            }).filter(Boolean);
+                        }
+                    }
+                } catch (_) {}
+            }
+
+            const rawMessages = allMessages.slice(-limit);
             const enriched = enrichMessagesWithImages(rawMessages, data.chatId);
 
             if (enriched.length === 0) {
@@ -453,6 +502,75 @@ async function handleToolCall(name, args) {
                     content: [{
                         type: 'text',
                         text: 'No chat history found in the active session.'
+                    }]
+                };
+            }
+
+            const formatted = enriched.map((m, idx) => {
+                const role = m.is_user ? 'User' : (m.is_system ? 'System' : (m.name || 'Storyteller'));
+                const swipeInfo = (m.swipes > 1) ? ` (Swipe ${m.swipe_id + 1}/${m.swipes})` : '';
+                let header = `[Message #${idx + 1}] [${role}]${swipeInfo}`;
+                if (m.send_date) header += `\nDate: ${m.send_date}`;
+
+                let imgBlock = '';
+                if (Array.isArray(m.images) && m.images.length > 0) {
+                    imgBlock = '\nImages:\n' + m.images.map(img => `  - ${img.label}: ${img.filename}\n    Path: ${img.path}`).join('\n');
+                }
+
+                return `${header}${imgBlock}\nText:\n${m.message || ''}`;
+            }).join('\n\n---\n\n');
+
+            return { content: [{ type: 'text', text: formatted }] };
+        }
+
+        case 'get_chat_history_for_swipe': {
+            const stateRes = await fetchState();
+            const data = stateRes.data || {};
+            const limit = Math.min(Number(args?.limit) || 30, 100);
+            let allMessages = Array.isArray(data.recentChat) ? data.recentChat : [];
+
+            if (allMessages.length === 0) {
+                try {
+                    const chatDir = 'C:/Petra/Jogos/SillyTavern/data/default-user/group chats';
+                    if (fs.existsSync(chatDir)) {
+                        const files = fs.readdirSync(chatDir).filter(f => f.endsWith('.jsonl'));
+                        if (files.length > 0) {
+                            files.sort((a, b) => fs.statSync(path.join(chatDir, b)).mtimeMs - fs.statSync(path.join(chatDir, a)).mtimeMs);
+                            const lines = fs.readFileSync(path.join(chatDir, files[0]), 'utf8').trim().split('\n').slice(1);
+                            allMessages = lines.map(l => {
+                                try {
+                                    const parsed = JSON.parse(l);
+                                    return {
+                                        name: parsed.name,
+                                        is_user: parsed.is_user,
+                                        is_system: parsed.is_system,
+                                        send_date: parsed.send_date,
+                                        message: parsed.mes || parsed.message,
+                                        swipe_id: parsed.swipe_id,
+                                        swipes: parsed.swipes?.length || 1,
+                                        force_avatar: parsed.force_avatar,
+                                        secondImage: parsed.secondImage,
+                                        thirdImage: parsed.thirdImage,
+                                        fourthImage: parsed.fourthImage,
+                                        portraitImage: parsed.portraitImage,
+                                        extra: parsed.extra
+                                    };
+                                } catch (_) { return null; }
+                            }).filter(Boolean);
+                        }
+                    }
+                } catch (_) {}
+            }
+
+            const priorMessages = allMessages.slice(0, -1);
+            const rawMessages = priorMessages.slice(-limit);
+            const enriched = enrichMessagesWithImages(rawMessages, data.chatId);
+
+            if (enriched.length === 0) {
+                return {
+                    content: [{
+                        type: 'text',
+                        text: 'No prior chat history found before the latest message.'
                     }]
                 };
             }
