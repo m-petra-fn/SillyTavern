@@ -1,0 +1,49 @@
+<div class="mcp-bridge-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>MCP Bridge (Model Context Protocol)</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <div class="mcp-status-container flex-container flexGap10 alignItemsCenter justifyBetween">
+                <span class="mcp-status-label">Bridge Status:</span>
+                <span id="mcp_bridge_status" class="mcp-badge mcp-badge-disconnected">Checking...</span>
+            </div>
+
+            <div class="mcp-info-row flex-container flexGap10 alignItemsCenter justifyBetween">
+                <span class="mcp-subtext">Active Character:</span>
+                <span id="mcp_active_character" class="mcp-subtext-val">None</span>
+            </div>
+
+            <div class="mcp-info-row flex-container flexGap10 alignItemsCenter justifyBetween">
+                <span class="mcp-subtext">Last Sync:</span>
+                <span id="mcp_last_sync" class="mcp-subtext-val">Never</span>
+            </div>
+
+            <hr class="sysHR" />
+
+            <div class="flex-container flexGap10 alignItemsCenter">
+                <input id="mcp_auto_sync" type="checkbox" checked />
+                <label for="mcp_auto_sync">Auto-sync state on chat updates</label>
+            </div>
+
+            <div class="flex-container flexGap10 alignItemsCenter">
+                <label for="mcp_chat_history_limit" class="flex1">Recent Chat Messages in Context:</label>
+                <input id="mcp_chat_history_limit" class="text_pole" type="number" min="5" max="100" value="30" style="width: 70px;" />
+            </div>
+
+            <div class="mcp-button-group flex-container flexGap10">
+                <button id="mcp_btn_sync_now" class="menu_button flex1" type="button">
+                    <i class="fa-solid fa-arrows-rotate"></i> Sync Now
+                </button>
+                <button id="mcp_btn_test_ping" class="menu_button flex1" type="button">
+                    <i class="fa-solid fa-plug"></i> Test Connection
+                </button>
+            </div>
+
+            <div class="mcp-help-hint mcp-subtext">
+                <small>Allows MCP clients (Claude Desktop, Antigravity, Cursor) to read current context and post as the opened character.</small>
+            </div>
+        </div>
+    </div>
+</div>

@@ -59,3 +59,10 @@ public/scripts/extensions/third-party
 yarn.lock
 *.code-workspace
 test-results/
+
+# Local verification dumps
+current_prompt_context.json
+current_prompt_context.txt
+live_full_context.json
+mcp_verification_output.txt
+

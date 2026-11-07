@@ -1,0 +1,57 @@
+.mcp-bridge-settings {
+    margin-bottom: 10px;
+}
+
+.mcp-status-container {
+    padding: 6px 0;
+}
+
+.mcp-status-label {
+    font-weight: bold;
+}
+
+.mcp-badge {
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 600;
+}
+
+.mcp-badge-connected {
+    background-color: rgba(46, 204, 113, 0.25);
+    color: #2ecc71;
+    border: 1px solid #2ecc71;
+}
+
+.mcp-badge-disconnected {
+    background-color: rgba(231, 76, 60, 0.25);
+    color: #e74c3c;
+    border: 1px solid #e74c3c;
+}
+
+.mcp-info-row {
+    padding: 2px 0;
+}
+
+.mcp-subtext {
+    opacity: 0.75;
+    font-size: 0.9em;
+}
+
+.mcp-subtext-val {
+    font-weight: 500;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mcp-button-group {
+    margin-top: 10px;
+    margin-bottom: 6px;
+}
+
+.mcp-help-hint {
+    margin-top: 6px;
+    line-height: 1.3;
+}
