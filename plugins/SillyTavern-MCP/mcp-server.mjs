@@ -356,21 +356,40 @@ async function getAssembledPromptObject() {
  * Enrich messages with attached images (from memory or chat jsonl)
  */
 function enrichMessagesWithImages(messages, chatId) {
-    if (!chatId) return messages;
+    if (!Array.isArray(messages) || messages.length === 0) return messages || [];
     let jsonlMessages = [];
-    try {
-        const groupFile = `C:/Petra/Jogos/SillyTavern/data/default-user/group chats/${chatId}.jsonl`;
-        if (fs.existsSync(groupFile)) {
-            const lines = fs.readFileSync(groupFile, 'utf8').trim().split('\n');
-            jsonlMessages = lines.map(l => {
-                try { return JSON.parse(l); } catch (_) { return null; }
-            }).filter(Boolean);
-        }
-    } catch (_) {}
+    if (chatId) {
+        try {
+            const groupFile = `C:/Petra/Jogos/SillyTavern/data/default-user/group chats/${chatId}.jsonl`;
+            let targetFile = null;
+            if (fs.existsSync(groupFile)) {
+                targetFile = groupFile;
+            } else {
+                const chatsDir = 'C:/Petra/Jogos/SillyTavern/data/default-user/chats';
+                if (fs.existsSync(chatsDir)) {
+                    const charDirs = fs.readdirSync(chatsDir);
+                    for (const charDir of charDirs) {
+                        const candidate = path.join(chatsDir, charDir, `${chatId}.jsonl`);
+                        if (fs.existsSync(candidate)) {
+                            targetFile = candidate;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (targetFile) {
+                const lines = fs.readFileSync(targetFile, 'utf8').trim().split('\n');
+                jsonlMessages = lines.map(l => {
+                    try { return JSON.parse(l); } catch (_) { return null; }
+                }).filter(m => m && !m.chat_metadata);
+            }
+        } catch (_) {}
+    }
 
     return messages.map((m, idx) => {
         const enriched = { ...m };
-        const diskMsg = jsonlMessages[idx] || jsonlMessages[jsonlMessages.length - messages.length + idx];
+        const diskMsg = jsonlMessages[idx] || (jsonlMessages.length >= messages.length ? jsonlMessages[jsonlMessages.length - messages.length + idx] : null);
         const src = diskMsg || m;
 
         const imgs = [];
@@ -389,6 +408,26 @@ function enrichMessagesWithImages(messages, chatId) {
                 const res = resolveImagePath(val);
                 if (res) {
                     imgs.push({ slot: slot.key, label: slot.label, filename: res.filename, path: res.absolutePath });
+                }
+            }
+        }
+
+        // Fallback: If no slot keys found on src, resolve any images already passed by the UI
+        if (imgs.length === 0 && Array.isArray(m.images) && m.images.length > 0) {
+            for (const img of m.images) {
+                const raw = img.path || img.filename;
+                const res = resolveImagePath(raw);
+                if (res) {
+                    let label = img.label || 'Image';
+                    if (label === 'Avatar / Slot 1' || img.slot === 'force_avatar') {
+                        label = 'Slot 1 (Avatar)';
+                    }
+                    imgs.push({
+                        slot: img.slot || 'image',
+                        label: label,
+                        filename: res.filename,
+                        path: res.absolutePath
+                    });
                 }
             }
         }

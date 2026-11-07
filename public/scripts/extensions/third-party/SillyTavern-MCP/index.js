@@ -179,13 +179,15 @@ async function syncState() {
     const chatList = context.chat || [];
     const recentChat = chatList.slice(-historyLimit).map(m => {
         const images = [];
-        if (m.force_avatar) images.push({ slot: 'force_avatar', label: 'Avatar / Slot 1', path: m.force_avatar });
-        if (m.secondImage) images.push({ slot: 'secondImage', label: 'Slot 2', path: m.secondImage });
-        if (m.thirdImage) images.push({ slot: 'thirdImage', label: 'Slot 3', path: m.thirdImage });
-        if (m.fourthImage) images.push({ slot: 'fourthImage', label: 'Slot 4', path: m.fourthImage });
-        if (m.portraitImage) images.push({ slot: 'portraitImage', label: 'Portrait', path: m.portraitImage });
-        if (m.extra?.image) images.push({ slot: 'extra_image', label: 'Attached Image', path: m.extra.image });
-        if (m.extra?.media) images.push({ slot: 'extra_media', label: 'Attached Media', path: m.extra.media });
+        const extractFn = (rawPath) => (typeof rawPath === 'string' ? rawPath.replace(/\\/g, '/').split('/').pop() : undefined);
+
+        if (m.force_avatar) images.push({ slot: 'force_avatar', label: 'Slot 1 (Avatar)', filename: extractFn(m.force_avatar), path: m.force_avatar });
+        if (m.secondImage) images.push({ slot: 'secondImage', label: 'Slot 2', filename: extractFn(m.secondImage), path: m.secondImage });
+        if (m.thirdImage) images.push({ slot: 'thirdImage', label: 'Slot 3', filename: extractFn(m.thirdImage), path: m.thirdImage });
+        if (m.fourthImage) images.push({ slot: 'fourthImage', label: 'Slot 4', filename: extractFn(m.fourthImage), path: m.fourthImage });
+        if (m.portraitImage) images.push({ slot: 'portraitImage', label: 'Portrait', filename: extractFn(m.portraitImage), path: m.portraitImage });
+        if (m.extra?.image) images.push({ slot: 'extra_image', label: 'Attached Image', filename: extractFn(m.extra.image), path: m.extra.image });
+        if (m.extra?.media) images.push({ slot: 'extra_media', label: 'Attached Media', filename: extractFn(m.extra.media), path: m.extra.media });
 
         return {
             name: m.name,
@@ -195,6 +197,11 @@ async function syncState() {
             send_date: m.send_date,
             swipes: Array.isArray(m.swipes) ? m.swipes.length : 1,
             swipe_id: m.swipe_id ?? 0,
+            force_avatar: m.force_avatar,
+            secondImage: m.secondImage,
+            thirdImage: m.thirdImage,
+            fourthImage: m.fourthImage,
+            portraitImage: m.portraitImage,
             images: images
         };
     });
