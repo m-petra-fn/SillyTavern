@@ -86,6 +86,7 @@ The assistant possesses **native multimodal vision**. When attached images are p
 1. Inspect the image file directly via `read_file` using the provided absolute path.
 2. Observe character expressions, costumes, creature anatomies, spell effects, and environment layout.
 3. Integrate visual details directly into the narrative prose to maintain seamless visual continuity with the artwork.
+4. **Deduplication / Caching:** If image filenames are repeated across different messages or sections (such as recurring character portrait slots or reused environmental plates), do **not** re-inspect them if they have already been viewed and analyzed earlier in the conversation.
 
 ---
 
