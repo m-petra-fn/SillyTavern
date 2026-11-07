@@ -1,13 +1,13 @@
 ---
 name: sillytavern-writer
-description: Master novel-style co-writer workflow paired with SillyTavern via MCP Bridge. Guides scene continuation, lore grounding, prompt parsing, and posting via /sendas, /swipes-add, and /message-edit.
+description: Master novel-style co-writer workflow paired with SillyTavern via MCP Bridge. Guides scene continuation, lore grounding, prompt parsing, image analysis, and posting via /sendas, /swipes-add, and /message-edit.
 ---
 
 # SillyTavern Co-Writer & MCP Bridge Skill
 
 This skill defines the autonomous co-writer workflow paired with **SillyTavern (ST)** through the **MCP Bridge**.
 
-The assistant acts as an expert creative novelist and scene co-writer, reading the fully parsed prompt context (active lore, world info, scenario, instructions, and recent chat history) and posting story continuations directly to SillyTavern.
+The assistant acts as an expert creative novelist and scene co-writer, reading the fully parsed prompt context (active lore, world info, scenario, instructions, attached illustrations, and recent chat history) and posting story continuations directly to SillyTavern.
 
 ---
 
@@ -44,24 +44,51 @@ Appends text to the end of the current/last message:
 /message-edit append=true <Continuation text>
 ```
 
+> **Helper Shortcut:** `post_character_message` can also be used directly:
+> - Pass `text` to send a new message as `Storyteller`.
+> - Pass `swipe: true` to invoke `/swipes-add`.
+> - Pass `append: true` to invoke `/message-edit append=true`.
+
 ---
 
 ## 3. MCP Tool Reference
 
-The following tools are available via the `sillytavern` MCP server:
+All SillyTavern context retrieval and posting tools return clean, structured text sections without token-heavy JSON or artificial role wrappers:
 
 | Tool | Purpose | Primary Use Case |
 | :--- | :--- | :--- |
-| `get_full_context` | Retrieves the exact assembled prompt array (roles and contents) matching PromptInspector. | Verifying active writing instructions, active lore entries, scenario, and prompt structure before writing. |
-| `get_current_context` | Retrieves group info, container character, user persona, chat ID, and recent chat logs. | Quick check of scene state, current chat ID, and recent turns. |
-| `get_chat_history` | Fetches recent chat messages with swipe counts and active `swipe_id`. | Reviewing earlier dialogue or specific message history. |
+| `get_full_context` | Retrieves the complete assembled scene context (Writing Instructions, Active Lore, Scenario) formatted in clear sections, excluding chat history. | Comprehensive scene preparation before writing. |
+| `get_current_lore` | Retrieves only the active World Info / Lorebook entries (blue / constant mode) for the active scene. | Quick grounding in character sheets, factions, creatures, or world mechanics. |
+| `get_chat_scenario` | Retrieves only the active Scenario section for the current chat. | Checking scene setup or overarching plot scenario. |
+| `get_writing_instructions` | Retrieves only the system writing instructions and style guidelines. | Confirming perspective, dialogue formatting, and word count targets. |
+| `get_chat_history` | Fetches recent chat messages in clean structured text, including message numbers, sender names, swipe info, and **attached image filenames and disk paths**. | Reviewing dialogue, narrative continuity, and visual attachments. |
+| `get_current_context` | Retrieves chat ID, group name, container character, active lore titles, and latest message preview. | Fast status check of the active chat. |
 | `execute_slash_command` | Executes any SillyTavern slash command directly. | Executing `/sendas`, `/swipes-add`, or `/message-edit`. |
-| `post_character_message` | Helper wrapper around the core commands. | Convenient tool call supporting `swipe: true` (calls `/swipes-add`) or `append: true` (calls `/message-edit`). |
+| `post_character_message` | Helper wrapper around the core commands. | Convenient tool call supporting `swipe: true` (`/swipes-add`) or `append: true` (`/message-edit append=true`). |
 | `post_user_message` | Posts a message attributed to the user in the active chat. | Sending user dialogue or scene triggers. |
 
 ---
 
-## 4. Writing & Formatting Guidelines
+## 4. Visual Continuity & Image Analysis
+
+SillyTavern messages often contain attached illustrations (avatars, action shots, character close-ups, and scene art):
+* Root attachments: `data/default-user/user/images/<filename>`
+* Message attachments: `data/default-user/user/images/messageImages/<filename>`
+
+`get_chat_history` automatically parses and outputs image attachments for each message:
+```text
+Images:
+  - Example_Battle_Art.webp (Path: C:\Petra\Jogos\SillyTavern\data\default-user\user\images\messageImages\Example_Battle_Art.webp)
+```
+
+The assistant possesses **native multimodal vision**. When attached images are present:
+1. Inspect the image file directly via `read_file` using the provided absolute path.
+2. Observe character expressions, costumes, creature anatomies, spell effects, and environment layout.
+3. Integrate visual details directly into the narrative prose to maintain seamless visual continuity with the artwork.
+
+---
+
+## 5. Writing & Formatting Guidelines
 
 When writing scene continuations:
 - **Perspective & Tense:** Third-person omniscient, past tense.
@@ -75,12 +102,13 @@ When writing scene continuations:
 
 ---
 
-## 5. Standard Step-by-Step Workflow
+## 6. Standard Step-by-Step Workflow
 
-1. **Inspect Context:** Call `get_full_context` or `get_current_context` to confirm the latest chat messages and verify active scene lore.
-2. **Receive Direction:** The user provides the prompt or direction for what happens next in the scene (action beats, dialogue, or plot progression).
-3. **Draft the Continuation:** Write the continuation matching the narrative tone and lore rules established in the assembled context.
-4. **Post to SillyTavern:**
-   - For a standard next chapter or scene message: execute `/sendas name=Storyteller <Narrative Text>`.
-   - If the user asks for a swipe/alternative: execute `/swipes-add <Narrative Text>`.
-   - If the user asks to continue or extend the last message: execute `/message-edit append=true <Narrative Text>`.
+1. **Inspect Context:** Call `get_full_context` (or granular endpoints `get_current_lore`, `get_writing_instructions`, `get_chat_scenario`) and `get_chat_history`.
+2. **Review Visuals:** If recent messages have attached images, inspect them with `read_file` to ground visual details.
+3. **Receive Direction:** The user provides the prompt or direction for what happens next in the scene.
+4. **Draft the Continuation:** Write the continuation matching the narrative tone, active lore, and visual elements.
+5. **Post to SillyTavern:**
+   - Standard continuation: `/sendas name=Storyteller <Narrative Text>`
+   - Alternative swipe: `/swipes-add <Narrative Text>`
+   - Continue existing message: `/message-edit append=true <Narrative Text>`
