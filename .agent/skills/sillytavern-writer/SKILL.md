@@ -34,7 +34,7 @@ This workflow uses a flexible, multi-character group setup:
 
 ---
 
-## 2. The 3 Core Story Posting Commands
+## 3. The 3 Core Story Posting Commands
 
 All narrative additions to SillyTavern are handled using three primary slash commands via `execute_slash_command` (or the `post_character_message` helper):
 
