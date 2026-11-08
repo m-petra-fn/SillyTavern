@@ -1,5 +1,5 @@
-const MODULE_NAME = 'SillyTavern-MCP';
-const EXTENSION_PATH = 'scripts/extensions/third-party/SillyTavern-MCP';
+const MODULE_NAME = 'SillyTavern-MCP-UI';
+const EXTENSION_PATH = 'scripts/extensions/third-party/SillyTavern-MCP-UI';
 
 let activeApiBase = 'http://127.0.0.1:8005';
 let isPolling = false;
@@ -491,7 +491,12 @@ async function handleAction(action) {
  */
 jQuery(async () => {
     try {
-        const templateHtml = await $.get(`/${EXTENSION_PATH}/settings.html`);
+        let templateHtml;
+        try {
+            templateHtml = await $.get(new URL('settings.html', import.meta.url).pathname);
+        } catch (_) {
+            templateHtml = await $.get(`/${EXTENSION_PATH}/settings.html`);
+        }
         $('#extensions_settings').append(templateHtml);
         // Refresh UI badge with current connection status immediately
         updateStatusUI(isConnected, lastSyncedName);
@@ -508,7 +513,7 @@ jQuery(async () => {
         await resolveApiBase();
         requestAssembledPrompt().catch(() => {});
         await syncState();
-        toastr.success(isConnected ? 'Bridge is online and synced!' : 'Server plugin not reachable. Check plugins/SillyTavern-MCP.');
+        toastr.success(isConnected ? 'Bridge is online and synced!' : 'Server plugin not reachable. Check plugins/SillyTavern-MCP-Server.');
     });
 
     $('#mcp_btn_test_ping').on('click', async () => {
@@ -624,5 +629,5 @@ jQuery(async () => {
 
     // Action polling loop
     pollIntervalId = setInterval(pollActions, 750);
-    console.log('[SillyTavern-MCP] Extension initialized with PromptInspector & auto-sync support.');
+    console.log('[SillyTavern-MCP-UI] Extension initialized with PromptInspector & auto-sync support.');
 });

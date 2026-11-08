@@ -1,8 +1,0 @@
-{
-  "name": "sillytavern-mcp-plugin",
-  "version": "1.0.0",
-  "description": "SillyTavern Server Plugin for Model Context Protocol (MCP) Bridge",
-  "main": "index.mjs",
-  "type": "module",
-  "author": "Antigravity"
-}

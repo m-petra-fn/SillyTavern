@@ -1,0 +1,10 @@
+{
+  "name": "sillytavern-mcp-server",
+  "version": "1.0.0",
+  "description": "SillyTavern Server Plugin & Model Context Protocol (MCP) Server Bridge",
+  "main": "index.mjs",
+  "type": "module",
+  "author": "Antigravity",
+  "license": "MIT",
+  "homepage": "https://github.com/m-petra-fn/Petra-SillyTavern-MCP-Server"
+}
