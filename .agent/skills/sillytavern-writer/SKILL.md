@@ -106,15 +106,25 @@ Images:
 
 ## 6. Writing & Formatting Guidelines
 
-When writing scene continuations:
+These guidelines represent the baseline standards for scene continuations. Always check the **`get_writing_instructions`** endpoint (or the Writing Instructions section in **`get_full_context`**) before drafting, as instructions and constraints configured directly in SillyTavern override or supplement these defaults. This allows modifying writing instructions, perspective, length, or style rules directly in SillyTavern without having to update this skill file.
+
+### Core Baseline Conventions
 - **Perspective & Tense:** Third-person omniscient, past tense.
 - **Atmosphere & Sensory Detail:** Ground each scene in tactile environment details (sights, sounds, scents, textures, and lighting) — *show, don't tell*.
 - **Character Agency:** Respect established character profiles, motivations, physical limitations, and speech quirks defined in the active lore.
 - **Formatting Conventions:**
   - Dialogue: In quotes with standard curly quotes (`“...”` and `‘...’`).
   - Internal Thoughts: In italics (`*...*`).
-  - Vocalized Skills / Strong Emphasis: In bold quotes (`“**Skill Name!**”`) or bold (`**...**`).
-- **Pacing & Length:** Default to approximately 600 words per scene continuation (or follow any length requested in the user prompt). Advance the scene naturally without forcing a premature conclusion to the arc.
+  - Strong Emphasis: In bold quotes or bold (`**...**`).
+- **Pacing & Length:** Default to approximately 600 words per scene continuation (or follow any specific word count requested in the user prompt). Advance the scene naturally without forcing a premature conclusion to the arc.
+
+### Stylistic Constraints (Avoid)
+- **Purple Prose:** Avoid overly ornate, flowery, melodramatic, or artificially elevated prose that detracts from narrative clarity and natural pacing.
+- **Excessive Emotion Tells:** Avoid direct emotion labeling in narrative beats (e.g., stating "she felt terrified" or "he grew angry"). Demonstrate emotional states authentically through physical reactions, dialogue, involuntary gestures, and body language (*show, don't tell*).
+- **Rhetorical Contrast Structures:** Avoid repetitive antithesis and binary framing (e.g., *"not just X, it's Y"*, *"X, not Y"*, *"isn't X, it's Y"*, *"to the world she was X, but to herself she was Y"*).
+- **Repetitive Vocabulary:** Avoid overusing recurring crutch words and stock descriptors across paragraphs (e.g., *sharp*, *flicker*, *jaw*, *hammered*, *gaze*, *steel*, *shudder*). Actively vary word choice.
+- **Trailing Participle Phrases (TPP):** Avoid tacking participle phrases onto the ends of sentences (e.g., clauses beginning with an *-ing* verb modifying the subject of the main clause placed at the sentence tail, like *"...standing rigid, watching the sky"*). Vary sentence structures, opening with different clauses, combining independent clauses, or breaking them into direct actions.
+- **Premature Scene Wraps & Summaries:** **Never try to end the story.** Avoid concluding summary paragraphs, morality wrap-ups, or poetic closing statements that prematurely resolve the scene. Leave actions, tensions, or interactions open and poised for the next prompt or continuation.
 
 ---
 
