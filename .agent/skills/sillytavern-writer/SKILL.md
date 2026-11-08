@@ -7,11 +7,24 @@ description: Master novel-style co-writer workflow paired with SillyTavern via M
 
 This skill defines the autonomous co-writer workflow paired with **SillyTavern (ST)** through the **MCP Bridge**.
 
-The assistant acts as an expert creative novelist and scene co-writer, reading the fully parsed prompt context (active lore, world info, scenario, instructions, attached illustrations, and recent chat history) and posting story continuations directly to SillyTavern.
+The assistant acts as an expert creative novelist and scene co-writer, reading the fully parsed prompt context (active lore, world info, scenario, instructions, attached illustrations, and full chat history) and posting story continuations directly to SillyTavern.
 
 ---
 
-## 1. System Architecture & The Container Character Pattern
+## 1. Strict Operational Rules & Boundaries
+
+1. **Zero Direct File Inspection for Context:**
+   - **Never search through SillyTavern's files on disk** (e.g., chat logs, lorebooks, settings, or server files) to extract context, lore, or chat state.
+   - The **only exception** for reading disk files is inspecting binary image files (`.webp`, `.png`, `.jpg`) via `read_file` **solely when image analysis has been explicitly requested by the user**.
+2. **MCP Exclusivity:**
+   - Rely solely on the provided MCP endpoints (`call_mcp_tool` under `sillytavern`).
+   - Do not attempt shell `curl` or `fetch` commands as workarounds.
+3. **Fail-Fast & Stop on Errors:**
+   - If any MCP endpoint presents errors, is offline, or returns empty/no content, **stop the activity immediately and warn the user**. Do not attempt to bypass or guess.
+
+---
+
+## 2. System Architecture & The Container Character Pattern
 
 This workflow uses a flexible, multi-character group setup:
 1. **Container Character in Group Chat:** Chats are organized as Group Chats containing a single blank/placeholder character (default: **`Storyteller`**). This character acts as the structural host for messages.
@@ -51,7 +64,7 @@ Appends text to the end of the current/last message:
 
 ---
 
-## 3. MCP Tool Reference
+## 4. MCP Tool Reference
 
 All SillyTavern context retrieval and posting tools return clean, structured text sections without token-heavy JSON or artificial role wrappers:
 
@@ -61,8 +74,8 @@ All SillyTavern context retrieval and posting tools return clean, structured tex
 | `get_current_lore` | Retrieves only the active World Info / Lorebook entries (blue / constant mode) for the active scene. | Quick grounding in character sheets, factions, creatures, or world mechanics. |
 | `get_chat_scenario` | Retrieves only the active Scenario section for the current chat. | Checking scene setup or overarching plot scenario. |
 | `get_writing_instructions` | Retrieves only the system writing instructions and style guidelines. | Confirming perspective, dialogue formatting, and word count targets. |
-| `get_chat_history` | Fetches recent chat messages in clean structured text, including message numbers, sender names, swipe info, and **attached image filenames and disk paths**. | Reviewing dialogue, narrative continuity, and visual attachments. |
-| `get_chat_history_for_swipe` | Fetches recent chat messages **excluding the very last message**. | Preparing context for writing an alternative swipe (/swipes-add) without including the message being swiped. |
+| `get_chat_history` | Fetches chat messages in clean structured text, including message numbers, sender names, swipe info, and **attached image filenames and disk paths**. | Reviewing dialogue, narrative continuity, and attachments. **Query for all past messages** (not just recent ones) unless explicitly asked otherwise. |
+| `get_chat_history_for_swipe` | Fetches chat messages **excluding the very last message**. | Preparing context for writing an alternative swipe (`/swipes-add`) across **all messages before the last**. |
 | `get_current_context` | Retrieves chat ID, group name, container character, active lore titles, and latest message preview. | Fast status check of the active chat. |
 | `execute_slash_command` | Executes any SillyTavern slash command directly. | Executing `/sendas`, `/swipes-add`, or `/message-edit`. |
 | `post_character_message` | Helper wrapper around the core commands. | Convenient tool call supporting `swipe: true` (`/swipes-add`) or `append: true` (`/message-edit append=true`). |
@@ -70,7 +83,7 @@ All SillyTavern context retrieval and posting tools return clean, structured tex
 
 ---
 
-## 4. Visual Continuity & Image Analysis
+## 5. Visual Continuity & Image Analysis
 
 SillyTavern messages often contain attached illustrations (avatars, action shots, character close-ups, and scene art):
 * Root attachments: `data/default-user/user/images/<filename>`
@@ -82,15 +95,16 @@ Images:
   - Example_Battle_Art.webp (Path: C:\Petra\Jogos\SillyTavern\data\default-user\user\images\messageImages\Example_Battle_Art.webp)
 ```
 
-The assistant possesses **native multimodal vision**. When attached images are present:
-1. Inspect the image file directly via `read_file` using the provided absolute path.
-2. Observe character expressions, costumes, creature anatomies, spell effects, and environment layout.
-3. Integrate visual details directly into the narrative prose to maintain seamless visual continuity with the artwork.
-4. **Deduplication / Caching:** If image filenames are repeated across different messages or sections (such as recurring character portrait slots or reused environmental plates), do **not** re-inspect them if they have already been viewed and analyzed earlier in the conversation.
+> [!IMPORTANT]
+> **Image Analysis Policy:**
+> - **Only analyze images if explicitly requested by the user.** If the user has not asked for visual/image analysis, do not call `read_file` on attached images.
+> - When image analysis is requested, inspect the image file directly via `read_file` using the provided absolute path.
+> - **Deduplication / Caching:** If image filenames are repeated across different messages or sections (such as recurring character portrait slots or reused environmental plates), do **not** re-inspect them if they have already been viewed and analyzed earlier in the conversation.
+> - Observe character expressions, costumes, creature anatomies, spell effects, and environment layout to ground the scene visually.
 
 ---
 
-## 5. Writing & Formatting Guidelines
+## 6. Writing & Formatting Guidelines
 
 When writing scene continuations:
 - **Perspective & Tense:** Third-person omniscient, past tense.
@@ -104,12 +118,15 @@ When writing scene continuations:
 
 ---
 
-## 6. Standard Step-by-Step Workflow
+## 7. Standard Step-by-Step Workflow
 
-1. **Inspect Context:** Call `get_full_context` (or granular endpoints `get_current_lore`, `get_writing_instructions`, `get_chat_scenario`) and `get_chat_history`.
-2. **Review Visuals:** If recent messages have attached images, inspect them with `read_file` to ground visual details.
-3. **Receive Direction:** The user provides the prompt or direction for what happens next in the scene.
-4. **Draft the Continuation:** Write the continuation matching the narrative tone, active lore, and visual elements.
+1. **Inspect Context & Full History:**
+   - Call `get_full_context` (or granular endpoints `get_current_lore`, `get_writing_instructions`, `get_chat_scenario`).
+   - Query for **all past messages** using `get_chat_history` (or `get_chat_history_for_swipe` for alternative swipes) to maintain complete context over earlier events, unless explicitly instructed by the user to limit the scope.
+2. **Review Visuals (Only Upon Request):**
+   - If—and only if—the user has requested image analysis, inspect any distinct attached images with `read_file`.
+3. **Receive Direction:** Receive the user's instructions or creative prompt for the continuation.
+4. **Draft the Continuation:** Write the continuation matching the narrative tone, active lore, and previous character dynamics.
 5. **Post to SillyTavern:**
    - Standard continuation: `/sendas name=Storyteller <Narrative Text>`
    - Alternative swipe: `/swipes-add <Narrative Text>`
