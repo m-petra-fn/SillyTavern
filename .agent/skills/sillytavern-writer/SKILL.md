@@ -120,7 +120,7 @@ These guidelines represent the baseline standards for scene continuations. Alway
 
 ### Stylistic Constraints (Avoid)
 - **Purple Prose:** Avoid overly ornate, flowery, melodramatic, or artificially elevated prose that detracts from narrative clarity and natural pacing.
-- **Excessive Emotion Tells:** Avoid direct emotion labeling in narrative beats (e.g., stating "she felt terrified" or "he grew angry"). Demonstrate emotional states authentically through physical reactions, dialogue, involuntary gestures, and body language (*show, don't tell*).
+- **Excessive Emotion Tells:** Avoid direct emotion labeling and narrative emotion statements in narration beats (e.g., explicitly stating "she felt terrified" or "he grew angry"). Instead, convey emotional states authentically through **character actions**, **character dialogue**, or **internal character thoughts** (*show, don't tell*), supported by physical reactions, involuntary gestures, and body language.
 - **Rhetorical Contrast Structures:** Avoid repetitive antithesis and binary framing (e.g., *"not just X, it's Y"*, *"X, not Y"*, *"isn't X, it's Y"*, *"to the world she was X, but to herself she was Y"*).
 - **Repetitive Vocabulary:** Avoid overusing recurring crutch words and stock descriptors across paragraphs (e.g., *sharp*, *flicker*, *jaw*, *hammered*, *gaze*, *steel*, *shudder*). Actively vary word choice.
 - **Trailing Participle Phrases (TPP):** Avoid tacking participle phrases onto the ends of sentences (e.g., clauses beginning with an *-ing* verb modifying the subject of the main clause placed at the sentence tail, like *"...standing rigid, watching the sky"*). Vary sentence structures, opening with different clauses, combining independent clauses, or breaking them into direct actions.
