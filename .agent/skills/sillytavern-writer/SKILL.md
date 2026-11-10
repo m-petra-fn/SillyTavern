@@ -72,11 +72,13 @@ All SillyTavern context retrieval and posting tools return clean, structured tex
 
 | Tool | Purpose | Primary Use Case |
 | :--- | :--- | :--- |
-| `get_chat_overview` | Returns lightweight metadata for all chat messages (~80–150 tokens): session ID, scenario hash, total count, per-message hashes, word counts, and swipe counts. | Turn-by-turn verification to detect new messages, message edits, or scenario changes with minimal tokens. |
-| `get_message` | Granularly fetches the full text, sender name, swipe info, and attached images for a single message by `message_id`. | Retrieving only a specific edited or requested message. |
-| `get_last_message` | Granularly fetches solely the latest message in the active chat. | Quick context check before appending (`/message-edit append=true`) or inspecting the latest prompt. |
+| `get_chat_overview` | Returns lightweight metadata for all chat messages (~80–150 tokens): session ID, scenario hash, total count, per-message hashes, word counts, swipe counts, and image counts. | Turn-by-turn verification to detect new messages, message edits, or scenario changes with minimal tokens. |
+| `get_message` | Granularly fetches the full text, sender name, and swipe info for a single message by `message_id` (without image filenames). | Retrieving only a specific edited or requested message. |
+| `get_last_message` | Granularly fetches solely the latest message in the active chat (without image filenames). | Quick context check before appending (`/message-edit append=true`) or inspecting the latest prompt. |
 | `list_active_lore` | Lists all active lorebooks and constant entries with `book`, `entry_id`, `title`, and content `hash` (~50–80 tokens). | Fast inspection of active world lore to detect changes or additions. |
-| `get_lore_entry` | Granularly fetches a single lore entry by its `book` and `entry_id`. | Loading or updating specific character or world entries when their hash changes. |
+| `get_lore_entry` | Granularly fetches a single lore entry by its `book` and `entry_id`. | Loading or updating a single character or world entry when its hash changes. |
+| `get_lore_entries` | Batch-retrieves multiple lore entries across one or more lorebooks in a single call (e.g. `[{book: 'setting', uids: [1, 3]}, {book: 'cast', uids: [2]}]`). | Fetching entire sets of lore entries at once with zero roundtrips. |
+| `get_message_images` | Lists attached image filenames, labels, and local disk paths for messages in the active chat. | Inspecting illustrations and attachments **only when visual analysis is explicitly requested**. |
 
 ### Full Context & History Tools
 
@@ -86,8 +88,8 @@ All SillyTavern context retrieval and posting tools return clean, structured tex
 | `get_current_lore` | Retrieves only the active World Info / Lorebook entries (blue / constant mode) for the active scene. | Quick grounding across all active lore entries at once. |
 | `get_chat_scenario` | Retrieves only the active Scenario section for the current chat, prefixed with `[Scenario Hash: ...]`. | Checking scene setup or overarching plot scenario when its hash changes. |
 | `get_writing_instructions` | Retrieves only the system writing instructions and style guidelines from SillyTavern. | Confirming custom instructions configured directly in ST if updated by the user. |
-| `get_chat_history` | Fetches chat messages in clean structured text, including message numbers, sender names, swipe info, and attached image filenames and disk paths. Supports `limit` (default: 30) and `since_id` (fetches only messages after `since_id`). | Initial chat loading or fetching delta messages (`since_id`). |
-| `get_chat_history_for_swipe` | Fetches chat messages **excluding the very last message**. | Preparing context for writing an alternative swipe (`/swipes-add`) across all messages before the last. |
+| `get_chat_history` | Fetches chat messages in clean structured text (without image filenames). Supports `limit` (default: 30) and `since_id` (fetches only messages after `since_id`). | Initial chat loading or fetching delta messages (`since_id`). |
+| `get_chat_history_for_swipe` | Fetches chat messages **excluding the very last message** (without image filenames). | Preparing context for writing an alternative swipe (`/swipes-add`) across all messages before the last. |
 | `get_current_context` | Retrieves chat ID, group name, container character, scenario hash, active lore titles with hashes, and latest message preview. | Fast status check of the active chat. |
 | `execute_slash_command` | Executes any SillyTavern slash command directly. | Executing `/sendas`, `/swipes-add`, or `/message-edit`. |
 | `post_character_message` | Helper wrapper around the core commands. | Convenient tool call supporting `swipe: true` (`/swipes-add`) or `append: true` (`/message-edit append=true`). |
@@ -101,17 +103,13 @@ SillyTavern messages often contain attached illustrations (avatars, action shots
 * Root attachments: `data/default-user/user/images/<filename>`
 * Message attachments: `data/default-user/user/images/messageImages/<filename>`
 
-`get_chat_history` automatically parses and outputs image attachments for each message:
-```text
-Images:
-  - Example_Battle_Art.webp (Path: C:\Petra\Jogos\SillyTavern\data\default-user\user\images\messageImages\Example_Battle_Art.webp)
-```
-
 > [!IMPORTANT]
-> **Image Analysis Policy:**
-> - **Only analyze images if explicitly requested by the user.** If the user has not asked for visual/image analysis, do not call `read_file` on attached images.
-> - When image analysis is requested, inspect the image file directly via `read_file` using the provided absolute path.
-> - **Deduplication / Caching:** If image filenames are repeated across different messages or sections (such as recurring character portrait slots or reused environmental plates), do **not** re-inspect them if they have already been viewed and analyzed earlier in the conversation.
+> **Token Optimization for Images:**
+> - To preserve context tokens, chat history and message endpoints (`get_chat_history`, `get_message`, `get_last_message`, `get_chat_overview`) **never include image filenames or disk paths**.
+> - The presence of attachments is indicated compactly in `get_chat_overview` via `Images: <count>`.
+> - **Only query images when explicitly requested:** Call `get_message_images(message_id=...)` to retrieve the filenames and local disk paths for specific messages only when visual inspection is required by the user.
+> - When visual analysis is requested, inspect the image file via `read_file` using the provided path.
+> - **Deduplication / Caching:** If image filenames are repeated across different messages (such as recurring character portrait slots or reused environmental plates), do **not** re-inspect them if they have already been viewed and analyzed earlier in the conversation.
 > - Observe character expressions, costumes, creature anatomies, spell effects, and environment layout to ground the scene visually.
 
 ---
@@ -148,7 +146,7 @@ To maintain full context while minimizing token consumption, follow this hash-ba
 1. **Initial History Fetch:**
    - Call `get_chat_history(limit=30)` to load the full active chat. Record the message IDs and their hashes.
 2. **Initial Lore Fetch:**
-   - Call `list_active_lore`. For relevant active lore entries, fetch them via `get_lore_entry(book, entry_id)` and retain their content and hashes in working memory.
+   - Call `list_active_lore`. Batch-fetch needed active lore entries in a single call using `get_lore_entries(entries=[{book: '...', uids: [...]}, ...])`, and retain their content and hashes in working memory.
 3. **Initial Scenario Fetch:**
    - Call `get_chat_scenario` to get the scene setup and overarching plot, noting the `[Scenario Hash: ...]`.
 
@@ -165,9 +163,10 @@ Do **not** re-query `get_full_context` or the entire chat history. Instead:
 2. **Active Lore Check:**
    - Call `list_active_lore`.
    - Check if any entries were activated, deactivated, or modified:
-     - If a lore entry's hash changed or a new active entry appears, fetch only that entry via `get_lore_entry(book, entry_id)`.
+     - If one entry changed, fetch via `get_lore_entry(book, entry_id)`.
+     - If multiple entries changed or new entries appeared, batch-fetch them in a single call via `get_lore_entries(entries=[...])`.
 3. **Review Visuals (Only Upon Request):**
-   - If—and only if—the user has requested image analysis, inspect any new distinct attached images with `read_file`.
+   - If—and only if—the user has requested visual/image analysis, query `get_message_images(message_id=...)` to retrieve the disk paths, then inspect any new distinct attached images with `read_file`.
 4. **Draft & Post:**
    - Standard continuation: `/sendas name=Storyteller <Narrative Text>` (or `post_character_message(text=...)`)
    - Alternative swipe: `/swipes-add <Narrative Text>` (or `post_character_message(text=..., swipe=true)`)

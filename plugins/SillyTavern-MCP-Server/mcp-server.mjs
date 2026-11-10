@@ -233,7 +233,7 @@ function getChatMessages(data = {}) {
 const TOOLS = [
     {
         name: 'get_chat_overview',
-        description: 'Get a lightweight overview of all messages in the chat (~80-150 tokens) with session ID, scenario hash, total messages, and per-message hashes, word counts, and swipe counts. Use this to detect if earlier messages were edited or new messages added.',
+        description: 'Get a lightweight overview of all messages in the chat (~80-150 tokens) with session ID, scenario hash, total messages, and per-message hashes, word counts, swipe counts, and image counts (without filenames). Use this to detect if earlier messages were edited or new messages added.',
         inputSchema: {
             type: 'object',
             properties: {}
@@ -241,7 +241,7 @@ const TOOLS = [
     },
     {
         name: 'get_message',
-        description: 'Get the full text, sender name, swipe info, and attached images for a single message by its 0-indexed ID.',
+        description: 'Get the full text, sender name, swipe info, and metadata for a single message by its 0-indexed ID (without image filenames; use get_message_images for images).',
         inputSchema: {
             type: 'object',
             properties: {
@@ -255,7 +255,7 @@ const TOOLS = [
     },
     {
         name: 'get_last_message',
-        description: 'Get solely the latest message in the active chat with full text, sender name, swipe count, and attached images. Ideal for continuing/appending text (/message-edit append=true) with zero token bloat.',
+        description: 'Get solely the latest message in the active chat with full text, sender name, and swipe count (without image filenames). Ideal for continuing/appending text (/message-edit append=true) with zero token bloat.',
         inputSchema: {
             type: 'object',
             properties: {}
@@ -271,7 +271,7 @@ const TOOLS = [
     },
     {
         name: 'get_lore_entry',
-        description: 'Get the full text content of a single specific lore entry by lorebook name and entry ID (uid). Use this to fetch only new or modified entries.',
+        description: 'Get the full text content of a single specific lore entry by lorebook name and entry ID (uid).',
         inputSchema: {
             type: 'object',
             properties: {
@@ -285,6 +285,55 @@ const TOOLS = [
                 }
             },
             required: ['book', 'entry_id']
+        }
+    },
+    {
+        name: 'get_lore_entries',
+        description: 'Batch-retrieve multiple lore entries across one or more lorebooks in a single call. Accepts an array of { book: string, uids: number[] } (e.g. [{ book: "bookname1", uids: [1, 3, 4] }, { book: "bookname2", uids: [4, 2, 1] }]).',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                entries: {
+                    type: 'array',
+                    description: 'Array of objects, each containing "book" (string) and "uids" (array of integer entry IDs).',
+                    items: {
+                        type: 'object',
+                        properties: {
+                            book: {
+                                type: 'string',
+                                description: 'Name of the lorebook'
+                            },
+                            uids: {
+                                type: 'array',
+                                description: 'List of entry IDs (uids) to retrieve',
+                                items: {
+                                    type: 'integer'
+                                }
+                            }
+                        },
+                        required: ['book', 'uids']
+                    }
+                }
+            },
+            required: ['entries']
+        }
+    },
+    {
+        name: 'get_message_images',
+        description: 'List attached image filenames, labels, and local disk paths for messages in the active chat. Use this only when visual image analysis is explicitly required by the user.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                message_id: {
+                    type: 'integer',
+                    description: 'Optional 0-indexed ID of a specific message. If omitted, returns image attachments for messages in the chat.'
+                },
+                limit: {
+                    type: 'integer',
+                    description: 'Number of recent messages to inspect for images when message_id is omitted (default: 30)',
+                    default: 30
+                }
+            }
         }
     },
     {
@@ -321,7 +370,7 @@ const TOOLS = [
     },
     {
         name: 'get_current_context',
-        description: 'Get a structured summary of the active session: group name, container character, user name, chat ID, scenario hash, lore hash, active lore titles, and last message preview.',
+        description: 'Get a structured summary of the active session: group name, container character, user name, chat ID, scenario hash, lore hash, active lore titles, and last message preview (without image filenames).',
         inputSchema: {
             type: 'object',
             properties: {}
@@ -329,7 +378,7 @@ const TOOLS = [
     },
     {
         name: 'get_chat_history',
-        description: 'Get chat messages in clean structured text format with sender name, swipe info, timestamps, attached image filenames/paths, and message text. Supports delta queries via since_id.',
+        description: 'Get chat messages in clean structured text format with sender name, swipe info, timestamps, and message text (without image filenames; use get_message_images for images). Supports delta queries via since_id.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -347,7 +396,7 @@ const TOOLS = [
     },
     {
         name: 'get_chat_history_for_swipe',
-        description: 'Get chat history excluding the very last message in the session. Use this when writing an alternative swipe for the latest message so that the message being swiped does not contaminate the context.',
+        description: 'Get chat history excluding the very last message in the session (without image filenames). Use this when writing an alternative swipe for the latest message so that the message being swiped does not contaminate the context.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -702,12 +751,8 @@ async function handleToolCall(name, args) {
                 out += msgs.map(m => {
                     const role = m.is_user ? 'User' : (m.is_system ? 'System' : m.name);
                     const swipeInfo = (m.swipes > 1) ? `, Swipes: ${m.swipe_id + 1}/${m.swipes}` : '';
-                    let line = `- [#${m.id}] [${role}] (Words: ${m.words}, Hash: ${m.hash}${swipeInfo})`;
-                    if (Array.isArray(m.images) && m.images.length > 0) {
-                        const imgSummaries = m.images.map(img => `${img.label}: ${img.filename}`).join(', ');
-                        line += `\n  Images: [${imgSummaries}]`;
-                    }
-                    return line;
+                    const imgInfo = (Array.isArray(m.images) && m.images.length > 0) ? `, Images: ${m.images.length}` : '';
+                    return `- [#${m.id}] [${role}] (Words: ${m.words}, Hash: ${m.hash}${swipeInfo}${imgInfo})`;
                 }).join('\n');
             }
 
@@ -736,15 +781,10 @@ async function handleToolCall(name, args) {
             let header = `[Message #${msg.id}] [${role}]${swipeInfo} (Hash: ${msg.hash}, Words: ${msg.words})`;
             if (msg.send_date) header += `\nDate: ${msg.send_date}`;
 
-            let imgBlock = '';
-            if (Array.isArray(msg.images) && msg.images.length > 0) {
-                imgBlock = '\nImages:\n' + msg.images.map(img => `  - ${img.label}: ${img.filename}\n    Path: ${img.path}`).join('\n');
-            }
-
             return {
                 content: [{
                     type: 'text',
-                    text: `${header}${imgBlock}\nText:\n${msg.message || ''}`
+                    text: `${header}\nText:\n${msg.message || ''}`
                 }]
             };
         }
@@ -769,17 +809,52 @@ async function handleToolCall(name, args) {
             let header = `[Message #${last.id}] [${role}]${swipeInfo} (Hash: ${last.hash}, Words: ${last.words})`;
             if (last.send_date) header += `\nDate: ${last.send_date}`;
 
-            let imgBlock = '';
-            if (Array.isArray(last.images) && last.images.length > 0) {
-                imgBlock = '\nImages:\n' + last.images.map(img => `  - ${img.label}: ${img.filename}\n    Path: ${img.path}`).join('\n');
-            }
-
             return {
                 content: [{
                     type: 'text',
-                    text: `${header}${imgBlock}\nText:\n${last.message || ''}`
+                    text: `${header}\nText:\n${last.message || ''}`
                 }]
             };
+        }
+
+        case 'get_message_images': {
+            const stateRes = await fetchState().catch(() => ({}));
+            const data = stateRes?.data || {};
+            const msgs = getChatMessages(data);
+            const msgId = (args?.message_id !== undefined && args?.message_id !== null && !isNaN(Number(args.message_id)))
+                ? Number(args.message_id)
+                : null;
+
+            if (msgId !== null) {
+                const msg = msgs.find(m => m.id === msgId) || (msgId >= 0 && msgId < msgs.length ? msgs[msgId] : null);
+                if (!msg) {
+                    return { content: [{ type: 'text', text: `Message #${msgId} not found in the active session.` }] };
+                }
+                const role = msg.is_user ? 'User' : (msg.is_system ? 'System' : msg.name);
+                if (!Array.isArray(msg.images) || msg.images.length === 0) {
+                    return { content: [{ type: 'text', text: `Message #${msg.id} [${role}] has no attached images.` }] };
+                }
+                let out = `=== IMAGES FOR MESSAGE #${msg.id} [${role}] ===\n`;
+                out += msg.images.map(img => `- ${img.label}: ${img.filename}\n  Path: ${img.path}`).join('\n');
+                return { content: [{ type: 'text', text: out }] };
+            }
+
+            const limit = Math.min(Number(args?.limit) || 30, 100);
+            const recentMsgs = msgs.slice(-limit).filter(m => Array.isArray(m.images) && m.images.length > 0);
+
+            if (recentMsgs.length === 0) {
+                return { content: [{ type: 'text', text: 'No attached images found in recent chat messages.' }] };
+            }
+
+            let out = '=== ACTIVE CHAT IMAGES ===\n';
+            out += recentMsgs.map(m => {
+                const role = m.is_user ? 'User' : (m.is_system ? 'System' : m.name);
+                let block = `[Message #${m.id}] [${role}]:\n`;
+                block += m.images.map(img => `  - ${img.label}: ${img.filename}\n    Path: ${img.path}`).join('\n');
+                return block;
+            }).join('\n\n');
+
+            return { content: [{ type: 'text', text: out }] };
         }
 
         case 'list_active_lore': {
@@ -868,6 +943,103 @@ async function handleToolCall(name, args) {
             return { content: [{ type: 'text', text: out }] };
         }
 
+        case 'get_lore_entries': {
+            let reqList = args?.entries;
+            if (typeof reqList === 'string') {
+                try { reqList = JSON.parse(reqList); } catch (_) { reqList = null; }
+            }
+            if (!Array.isArray(reqList) || reqList.length === 0) {
+                throw new Error('Missing or invalid parameter: entries. Expected an array of { book: string, uids: number[] }.');
+            }
+
+            const { promptObj, fallbackData } = await getContextData();
+            const stateRes = await fetchState().catch(() => ({}));
+            const data = stateRes?.data || {};
+            const combinedFallback = { ...fallbackData, ...data };
+            const activeEntries = getActiveLoreEntries(combinedFallback, promptObj);
+
+            const worldCache = new Map();
+            const results = [];
+            const notFound = [];
+
+            for (const item of reqList) {
+                const book = String(item.book || '').trim();
+                const uids = Array.isArray(item.uids) ? item.uids : [];
+                if (!book || uids.length === 0) continue;
+
+                let diskEntries = null;
+                const bookKey = book.toLowerCase();
+
+                if (!worldCache.has(bookKey)) {
+                    const filename = book.endsWith('.json') ? book : `${book}.json`;
+                    const filePath = path.join(WORLDS_DIR, filename);
+                    if (fs.existsSync(filePath)) {
+                        try {
+                            const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                            diskEntries = Object.values(raw.entries || {});
+                        } catch (_) {}
+                    }
+                    worldCache.set(bookKey, diskEntries);
+                } else {
+                    diskEntries = worldCache.get(bookKey);
+                }
+
+                for (const uid of uids) {
+                    let entry = activeEntries.find(e =>
+                        (e.book.toLowerCase() === bookKey || book === '*') &&
+                        String(e.entry_id) === String(uid)
+                    );
+
+                    if (!entry && diskEntries) {
+                        const found = diskEntries.find(e => String(e.uid) === String(uid));
+                        if (found) {
+                            entry = {
+                                book,
+                                entry_id: found.uid,
+                                title: found.comment || 'Untitled',
+                                content: found.content || '',
+                                hash: computeHash(found.content),
+                                keys: Array.isArray(found.key) ? found.key : []
+                            };
+                        }
+                    }
+
+                    if (entry) {
+                        results.push(entry);
+                    } else {
+                        notFound.push(`[${book}] #${uid}`);
+                    }
+                }
+            }
+
+            if (results.length === 0) {
+                return {
+                    content: [{
+                        type: 'text',
+                        text: notFound.length > 0
+                            ? `No lore entries found for the requested books and IDs: ${notFound.join(', ')}`
+                            : 'No valid lore entries requested.'
+                    }]
+                };
+            }
+
+            let out = results.map(entry => {
+                let block = `=== LORE ENTRY: [${entry.book}] #${entry.entry_id} - ${entry.title} ===\n`;
+                block += `Hash: ${entry.hash}\n`;
+                if (entry.keys && entry.keys.length > 0) {
+                    block += `Keys: ${entry.keys.join(', ')}\n`;
+                }
+                block += `\nContent:\n${entry.content}`;
+                return block;
+            }).join('\n\n---\n\n');
+
+            if (notFound.length > 0) {
+                out += `\n\n---\n[Notice: The following entries were not found: ${notFound.join(', ')}]`;
+            }
+
+            return { content: [{ type: 'text', text: out }] };
+        }
+
         case 'get_current_context': {
             const { promptObj, fallbackData } = await getContextData();
             const stateRes = await fetchState().catch(() => ({}));
@@ -897,9 +1069,6 @@ async function handleToolCall(name, args) {
                 const swipeInfo = (last.swipes > 1) ? ` (Swipe ${last.swipe_id + 1}/${last.swipes})` : '';
                 out += `=== LATEST MESSAGE PREVIEW ===\n`;
                 out += `[${role}]${swipeInfo} (Hash: ${last.hash})\n`;
-                if (Array.isArray(last.images) && last.images.length > 0) {
-                    out += 'Images:\n' + last.images.map(img => `  - ${img.label}: ${img.filename}\n    Path: ${img.path}`).join('\n') + '\n';
-                }
                 out += `Text:\n${last.message || ''}`;
             }
 
@@ -937,12 +1106,7 @@ async function handleToolCall(name, args) {
                 let header = `[Message #${m.id}] [${role}]${swipeInfo}`;
                 if (m.send_date) header += `\nDate: ${m.send_date}`;
 
-                let imgBlock = '';
-                if (Array.isArray(m.images) && m.images.length > 0) {
-                    imgBlock = '\nImages:\n' + m.images.map(img => `  - ${img.label}: ${img.filename}\n    Path: ${img.path}`).join('\n');
-                }
-
-                return `${header}${imgBlock}\nText:\n${m.message || ''}`;
+                return `${header}\nText:\n${m.message || ''}`;
             }).join('\n\n---\n\n');
 
             return { content: [{ type: 'text', text: formatted }] };
@@ -972,12 +1136,7 @@ async function handleToolCall(name, args) {
                 let header = `[Message #${m.id}] [${role}]${swipeInfo}`;
                 if (m.send_date) header += `\nDate: ${m.send_date}`;
 
-                let imgBlock = '';
-                if (Array.isArray(m.images) && m.images.length > 0) {
-                    imgBlock = '\nImages:\n' + m.images.map(img => `  - ${img.label}: ${img.filename}\n    Path: ${img.path}`).join('\n');
-                }
-
-                return `${header}${imgBlock}\nText:\n${m.message || ''}`;
+                return `${header}\nText:\n${m.message || ''}`;
             }).join('\n\n---\n\n');
 
             return { content: [{ type: 'text', text: formatted }] };

@@ -86,11 +86,13 @@ All tools return clean, structured plain text formatted for natural agent reason
 
 | Tool | Type | Description |
 | :--- | :--- | :--- |
-| `get_chat_overview` | Index | Lightweight overview of all messages in the chat (~80–150 tokens) with session ID, container character, scenario hash, total messages, per-message hashes, word counts, and swipe counts. Ideal for detecting message edits or new messages between turns. |
-| `get_message` | Context | Granular fetch of a single message's full text, sender name, swipe info, and attached images by its `message_id`. |
+| `get_chat_overview` | Index | Lightweight overview of all messages in the chat (~80–150 tokens) with session ID, container character, scenario hash, total messages, per-message hashes, word counts, swipe counts, and attached image counts. Filenames are excluded to avoid token bloat. |
+| `get_message` | Context | Granular fetch of a single message's full text, sender name, and swipe info by `message_id` (without image filenames). |
 | `get_last_message` | Context | Fetches solely the latest message in the active chat. Ideal for continuing/appending text (`/message-edit append=true`) with minimal token usage. |
 | `list_active_lore` | Index | Lists all active lorebooks and constant entries with entry ID (`entry_id`), title, and content hash (~50–80 tokens). |
 | `get_lore_entry` | Context | Granularly fetches a single lore entry by its `book` and `entry_id`. |
+| `get_lore_entries` | Context | Batch-retrieves multiple lore entries across one or more lorebooks in a single call (e.g. `[{book: 'setting', uids: [1, 3]}, {book: 'cast', uids: [2]}]`). |
+| `get_message_images` | Visual | Lists attached image filenames, labels, and local disk paths for messages in the active chat. Use only when visual analysis is requested. |
 
 ### Full Context & History Tools
 
@@ -100,7 +102,7 @@ All tools return clean, structured plain text formatted for natural agent reason
 | `get_current_lore` | Context | Retrieves only the active World Info / Lorebook entries (blue / constant mode) for the active scene. |
 | `get_chat_scenario` | Context | Retrieves only the active Scenario section for the current chat, prefixed with `[Scenario Hash: ...]`. |
 | `get_writing_instructions` | Context | Retrieves only the system writing instructions and style guidelines. |
-| `get_chat_history` | History | Fetches chat messages with sender names, swipe info, and attached image filenames and disk paths. Supports `limit` (default: 30) and `since_id` (returns only messages logged after the given ID for delta fetching). |
+| `get_chat_history` | History | Fetches chat messages with sender names, swipe info, timestamps, and message text (without image filenames). Supports `limit` (default: 30) and `since_id` (returns only messages logged after the given ID for delta fetching). |
 | `get_chat_history_for_swipe` | History | Fetches chat messages **excluding the very last message**, designed specifically for drafting alternative swipes (`/swipes-add`). |
 | `get_current_context` | Context | High-level status check: returns chat ID, group name, container character, scenario hash, active lore titles with hashes, and latest message preview. |
 
