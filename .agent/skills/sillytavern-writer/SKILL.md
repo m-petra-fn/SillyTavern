@@ -72,7 +72,8 @@ All SillyTavern context retrieval and posting tools return clean, structured tex
 
 | Tool | Purpose | Primary Use Case |
 | :--- | :--- | :--- |
-| `get_chat_overview` | Returns lightweight metadata for all chat messages (~80–150 tokens): session ID, scenario hash, total count, per-message hashes, word counts, swipe counts, and image counts. | Turn-by-turn verification to detect new messages, message edits, or scenario changes with minimal tokens. |
+| `get_context_diff` | Intelligent server-side context controller. Tracks baseline state per `chatId` and returns only what changed (scenario, active lore, or new/edited messages) in ~15–45 tokens. | **Primary turn-by-turn verification.** Call `full: true` on Turn 1 of a new session, and `get_context_diff()` on subsequent turns. |
+| `get_chat_overview` | Returns lightweight metadata for all chat messages (~80–150 tokens): session ID, scenario hash, total count, per-message hashes, word counts, swipe counts, and image counts. | Inspecting full message indices if needed. |
 | `get_message` | Granularly fetches the full text, sender name, and swipe info for a single message by `message_id` (without image filenames). | Retrieving only a specific edited or requested message. |
 | `get_last_message` | Granularly fetches solely the latest message in the active chat (without image filenames). | Quick context check before appending (`/message-edit append=true`) or inspecting the latest prompt. |
 | `list_active_lore` | Lists all active lorebooks and constant entries with `book`, `entry_id`, `title`, and content `hash` (~50–80 tokens). | Fast inspection of active world lore to detect changes or additions. |
@@ -140,31 +141,24 @@ These guidelines represent the baseline standards for scene continuations. Becau
 
 ## 7. Step-by-Step Optimized Workflow
 
-To maintain full context while minimizing token consumption, follow this hash-based caching pattern:
+To maintain complete narrative continuity while consuming the absolute minimum tokens, follow this workflow:
 
 ### A. Turn 1 (Session Start / Cold Initialization)
-1. **Initial History Fetch:**
-   - Call `get_chat_history(limit=30)` to load the full active chat. Record the message IDs and their hashes.
-2. **Initial Lore Fetch:**
-   - Call `list_active_lore`. Batch-fetch needed active lore entries in a single call using `get_lore_entries(entries=[{book: '...', uids: [...]}, ...])`, and retain their content and hashes in working memory.
-3. **Initial Scenario Fetch:**
-   - Call `get_chat_scenario` to get the scene setup and overarching plot, noting the `[Scenario Hash: ...]`.
+1. **One-Shot Baseline Fetch:**
+   - Call `get_context_diff(full: true)`.
+   - This single call establishes the persistent server baseline for the active chat and returns the complete starting context (scenario, active lore, and recent chat history).
+   - Retain these details in working memory for the session.
 
-### B. Subsequent Turns (Lightweight Verification ~150–250 Tokens)
+### B. Subsequent Turns (Server-Side Delta ~15–45 Tokens)
 Do **not** re-query `get_full_context` or the entire chat history. Instead:
-1. **Chat & Scenario Check:**
-   - Call `get_chat_overview`.
-   - **Check Scenario Hash:** If the scenario hash changed from Turn 1, fetch `get_chat_scenario`.
-   - **Check Message Hashes:** Compare the message hashes against previously recorded IDs:
-     - If an earlier message ID was edited (hash changed), retrieve only that message with `get_message(message_id)`.
-     - If new messages were added since your last turn:
-       - For standard continuation or user input, call `get_chat_history(since_id=last_known_id)` to delta-fetch only the new messages.
-       - If the user simply asks to append or continue (`/message-edit append=true`), call `get_last_message` for immediate context with minimal tokens.
-2. **Active Lore Check:**
-   - Call `list_active_lore`.
-   - Check if any entries were activated, deactivated, or modified:
-     - If one entry changed, fetch via `get_lore_entry(book, entry_id)`.
-     - If multiple entries changed or new entries appeared, batch-fetch them in a single call via `get_lore_entries(entries=[...])`.
+1. **Call `get_context_diff()`:**
+   - **If Status is `In sync (0 changes detected)`:** No changes occurred in lore, scenario, or chat. Proceed directly to drafting!
+   - **If Changes are Detected:**
+     - Review the reported delta (modified scenario, modified/new lore, or new/edited messages).
+     - If you passed `include_content: true`, the changed text is already embedded in the response.
+     - Otherwise, fetch only the specific changed items via `get_message(message_id)` or `get_lore_entry(book, entry_id)` / `get_lore_entries`.
+2. **Appending / Continuing:**
+   - If the user asks to continue or append to the last message (`/message-edit append=true`), you can call `get_last_message` for immediate tail context with minimal tokens.
 3. **Review Visuals (Only Upon Request):**
    - If—and only if—the user has requested visual/image analysis, query `get_message_images(message_id=...)` to retrieve the disk paths, then inspect any new distinct attached images with `read_file`.
 4. **Draft & Post:**

@@ -3,6 +3,26 @@ import readline from 'node:readline';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const CACHE_FILE = path.join(__dirname, 'context_cache.json');
+
+function loadContextCache() {
+    try {
+        if (fs.existsSync(CACHE_FILE)) {
+            return JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+        }
+    } catch (_) {}
+    return {};
+}
+
+function saveContextCache(cache) {
+    try {
+        fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2), 'utf8');
+    } catch (_) {}
+}
 
 // Default to dedicated bridge port 8005, with fallback options
 const ST_BASE = process.env.SILLYTAVERN_URL || `http://127.0.0.1:${process.env.SILLYTAVERN_MCP_PORT || '8005'}`;
@@ -228,9 +248,275 @@ function getChatMessages(data = {}) {
 }
 
 /**
+ * Compute context delta / diff against server-side persistent cache per chatId
+ */
+async function computeContextDiff(args = {}) {
+    const isFull = !!args?.full;
+    const isReset = !!args?.reset;
+    const includeContent = !!args?.include_content;
+
+    const stateRes = await fetchState().catch(() => ({}));
+    const data = stateRes?.data || {};
+    const chatId = data.chatId || 'default';
+
+    const cacheStore = loadContextCache();
+    if (isReset && cacheStore[chatId]) {
+        delete cacheStore[chatId];
+        saveContextCache(cacheStore);
+    }
+
+    const { promptObj, fallbackData } = await getContextData();
+    const combinedFallback = { ...fallbackData, ...data };
+    const { scenario } = extractContextSections(promptObj, fallbackData);
+
+    const currentScenarioHash = computeHash(scenario);
+    const currentLoreEntries = getActiveLoreEntries(combinedFallback, promptObj);
+    const currentMessages = getChatMessages(data);
+
+    const cached = cacheStore[chatId];
+    const isFirstTime = !cached;
+
+    // Helper to build lore map
+    const buildLoreMap = entries => {
+        const map = {};
+        for (const e of entries) {
+            map[`${e.book}:${e.entry_id}`] = {
+                book: e.book,
+                entry_id: e.entry_id,
+                title: e.comment || e.title,
+                hash: e.hash,
+                keys: e.keys || []
+            };
+        }
+        return map;
+    };
+
+    // Helper to build message list
+    const buildMsgList = msgs => msgs.map(m => ({
+        id: m.id,
+        name: m.name,
+        is_user: m.is_user,
+        is_system: m.is_system,
+        hash: m.hash,
+        words: m.words,
+        swipes: m.swipes,
+        swipe_id: m.swipe_id
+    }));
+
+    // If full sync requested or first time seeing this chatId
+    if (isFull || isFirstTime) {
+        cacheStore[chatId] = {
+            scenarioHash: currentScenarioHash,
+            loreEntries: buildLoreMap(currentLoreEntries),
+            messages: buildMsgList(currentMessages),
+            lastUpdated: Date.now()
+        };
+        saveContextCache(cacheStore);
+
+        if (isFull) {
+            let fullOut = `=== BASELINE CONTEXT [Session: ${chatId}] ===\n`;
+            fullOut += `Scenario Hash: ${currentScenarioHash}\n`;
+            fullOut += `Total Messages: ${currentMessages.length}\n`;
+            fullOut += `Active Lore Entries: ${currentLoreEntries.length}\n\n`;
+
+            if (scenario) {
+                fullOut += `=== SECTION: SCENARIO ===\n${scenario}\n\n`;
+            }
+
+            if (currentLoreEntries.length > 0) {
+                fullOut += `=== SECTION: ACTIVE LORE ===\n`;
+                fullOut += currentLoreEntries.map(e => {
+                    let block = `[${e.book}] #${e.entry_id} - ${e.title} (Hash: ${e.hash})`;
+                    if (includeContent || isFull) {
+                        block += `\n${e.content}`;
+                    }
+                    return block;
+                }).join('\n\n---\n\n') + '\n\n';
+            }
+
+            if (currentMessages.length > 0) {
+                fullOut += `=== SECTION: CHAT HISTORY ===\n`;
+                fullOut += currentMessages.map(m => {
+                    const role = m.is_user ? 'User' : (m.is_system ? 'System' : m.name);
+                    const swipeInfo = (m.swipes > 1) ? ` (Swipe ${m.swipe_id + 1}/${m.swipes})` : '';
+                    let block = `[Message #${m.id}] [${role}]${swipeInfo} (Hash: ${m.hash}, Words: ${m.words})`;
+                    if (includeContent || isFull) {
+                        block += `\nText:\n${m.message}`;
+                    }
+                    return block;
+                }).join('\n\n---\n\n');
+            }
+
+            return fullOut.trim();
+        }
+
+        if (isFirstTime) {
+            return `=== CONTEXT BASELINE ESTABLISHED [Session: ${chatId}] ===\nScenario Hash: ${currentScenarioHash}\nTotal Messages: ${currentMessages.length}\nActive Lore Entries: ${currentLoreEntries.length}\nStatus: Initial baseline saved. Future calls will return only deltas.`;
+        }
+    }
+
+    const activeCached = cacheStore[chatId] || cached;
+
+    // Delta calculation against cached baseline
+    const changes = {
+        scenarioChanged: false,
+        loreModified: [],
+        loreNew: [],
+        loreRemoved: [],
+        messagesRollback: false,
+        messagesEdited: [],
+        messagesNew: []
+    };
+
+    // 1. Scenario diff
+    if (activeCached.scenarioHash !== currentScenarioHash) {
+        changes.scenarioChanged = true;
+    }
+
+    // 2. Lore diff
+    const currentLoreKeys = new Set();
+    for (const e of currentLoreEntries) {
+        const key = `${e.book}:${e.entry_id}`;
+        currentLoreKeys.add(key);
+        const oldE = activeCached.loreEntries?.[key];
+        if (!oldE) {
+            changes.loreNew.push(e);
+        } else if (oldE.hash !== e.hash) {
+            changes.loreModified.push(e);
+        }
+    }
+
+    for (const [key, oldE] of Object.entries(activeCached.loreEntries || {})) {
+        if (!currentLoreKeys.has(key)) {
+            changes.loreRemoved.push(oldE);
+        }
+    }
+
+    // 3. Message diff
+    const oldMessages = activeCached.messages || [];
+    if (currentMessages.length < oldMessages.length) {
+        changes.messagesRollback = true;
+    }
+
+    for (const m of currentMessages) {
+        if (m.id < oldMessages.length) {
+            const oldM = oldMessages[m.id];
+            if (oldM && oldM.hash !== m.hash) {
+                changes.messagesEdited.push(m);
+            }
+        } else {
+            changes.messagesNew.push(m);
+        }
+    }
+
+    const hasChanges = changes.scenarioChanged ||
+        changes.loreModified.length > 0 ||
+        changes.loreNew.length > 0 ||
+        changes.loreRemoved.length > 0 ||
+        changes.messagesRollback ||
+        changes.messagesEdited.length > 0 ||
+        changes.messagesNew.length > 0;
+
+    // Update server cache with the latest state
+    cacheStore[chatId] = {
+        scenarioHash: currentScenarioHash,
+        loreEntries: buildLoreMap(currentLoreEntries),
+        messages: buildMsgList(currentMessages),
+        lastUpdated: Date.now()
+    };
+    saveContextCache(cacheStore);
+
+    if (!hasChanges) {
+        return `=== CONTEXT DIFF [Session: ${chatId}] ===\nStatus: In sync (0 changes detected).`;
+    }
+
+    let diffOut = `=== CONTEXT DIFF [Session: ${chatId}] ===\n`;
+
+    if (changes.scenarioChanged) {
+        diffOut += `\n[Scenario]: Modified (Hash: ${currentScenarioHash})`;
+        if (includeContent) {
+            diffOut += `\nContent:\n${scenario}\n`;
+        }
+    }
+
+    if (changes.loreModified.length > 0 || changes.loreNew.length > 0 || changes.loreRemoved.length > 0) {
+        diffOut += `\n[Active Lore]:`;
+        if (changes.loreModified.length > 0) {
+            diffOut += `\n  - Modified (${changes.loreModified.length}):\n` + changes.loreModified.map(e => {
+                let s = `    * [${e.book}] #${e.entry_id} "${e.title}" (Hash: ${e.hash})`;
+                if (includeContent) s += `\n      Content: ${e.content}`;
+                return s;
+            }).join('\n');
+        }
+        if (changes.loreNew.length > 0) {
+            diffOut += `\n  - New (${changes.loreNew.length}):\n` + changes.loreNew.map(e => {
+                let s = `    * [${e.book}] #${e.entry_id} "${e.title}" (Hash: ${e.hash})`;
+                if (includeContent) s += `\n      Content: ${e.content}`;
+                return s;
+            }).join('\n');
+        }
+        if (changes.loreRemoved.length > 0) {
+            diffOut += `\n  - Deactivated (${changes.loreRemoved.length}):\n` + changes.loreRemoved.map(e => {
+                return `    * [${e.book}] #${e.entry_id} "${e.title}"`;
+            }).join('\n');
+        }
+    }
+
+    if (changes.messagesRollback) {
+        diffOut += `\n[Chat Messages]: Rollback detected! Chat shrunk to ${currentMessages.length} messages (was ${oldMessages.length}).`;
+    }
+
+    if (changes.messagesEdited.length > 0 || changes.messagesNew.length > 0) {
+        if (!changes.messagesRollback) diffOut += `\n[Chat Messages]:`;
+        if (changes.messagesEdited.length > 0) {
+            diffOut += `\n  - Edited (${changes.messagesEdited.length}):\n` + changes.messagesEdited.map(m => {
+                const role = m.is_user ? 'User' : (m.is_system ? 'System' : m.name);
+                let s = `    * [#${m.id}] [${role}] (Words: ${m.words}, Hash: ${m.hash})`;
+                if (includeContent) s += `\n      Text: ${m.message}`;
+                return s;
+            }).join('\n');
+        }
+        if (changes.messagesNew.length > 0) {
+            diffOut += `\n  - New (${changes.messagesNew.length}):\n` + changes.messagesNew.map(m => {
+                const role = m.is_user ? 'User' : (m.is_system ? 'System' : m.name);
+                let s = `    * [#${m.id}] [${role}] (Words: ${m.words}, Hash: ${m.hash})`;
+                if (includeContent) s += `\n      Text: ${m.message}`;
+                return s;
+            }).join('\n');
+        }
+    }
+
+    return diffOut.trim();
+}
+
+/**
  * Standard Model Context Protocol (MCP) Tools definition
  */
 const TOOLS = [
+    {
+        name: 'get_context_diff',
+        description: 'Get a lightweight delta of only what changed (scenario, active lore, or new/edited messages) since the last turn for the active chat. By default returns only IDs and hashes of changes (~15-45 tokens). Pass full=true on Turn 1 of a new agent conversation to establish the baseline.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                full: {
+                    type: 'boolean',
+                    description: 'If true, returns the complete baseline context (scenario, active lore, and chat history) and establishes the server reference. Use on Turn 1 of a new agent conversation.',
+                    default: false
+                },
+                include_content: {
+                    type: 'boolean',
+                    description: 'If true, embeds the full text of modified lore entries and new messages directly into the diff to avoid extra roundtrips.',
+                    default: false
+                },
+                reset: {
+                    type: 'boolean',
+                    description: 'If true, forcibly purges the server cache for the active chat.',
+                    default: false
+                }
+            }
+        }
+    },
     {
         name: 'get_chat_overview',
         description: 'Get a lightweight overview of all messages in the chat (~80-150 tokens) with session ID, scenario hash, total messages, and per-message hashes, word counts, swipe counts, and image counts (without filenames). Use this to detect if earlier messages were edited or new messages added.',
@@ -679,6 +965,11 @@ function enrichMessagesWithImages(messages, chatId) {
  */
 async function handleToolCall(name, args) {
     switch (name) {
+        case 'get_context_diff': {
+            const diffText = await computeContextDiff(args);
+            return { content: [{ type: 'text', text: diffText }] };
+        }
+
         case 'get_full_context': {
             const { promptObj, fallbackData } = await getContextData();
             const { instructions, lore, scenario } = extractContextSections(promptObj, fallbackData);

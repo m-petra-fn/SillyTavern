@@ -86,6 +86,7 @@ All tools return clean, structured plain text formatted for natural agent reason
 
 | Tool | Type | Description |
 | :--- | :--- | :--- |
+| `get_context_diff` | Controller | Intelligent server-side context controller. Tracks baseline state per `chatId` and returns only what changed (scenario, active lore, or new/edited messages) in ~15–45 tokens. Supports `full: true` (Turn 1 baseline), `include_content: true` (embeds text directly), and `reset: true`. |
 | `get_chat_overview` | Index | Lightweight overview of all messages in the chat (~80–150 tokens) with session ID, container character, scenario hash, total messages, per-message hashes, word counts, swipe counts, and attached image counts. Filenames are excluded to avoid token bloat. |
 | `get_message` | Context | Granular fetch of a single message's full text, sender name, and swipe info by `message_id` (without image filenames). |
 | `get_last_message` | Context | Fetches solely the latest message in the active chat. Ideal for continuing/appending text (`/message-edit append=true`) with minimal token usage. |
