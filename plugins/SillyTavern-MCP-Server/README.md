@@ -82,15 +82,32 @@ Configure the MCP server using command `node` and pointing directly to `mcp-serv
 
 All tools return clean, structured plain text formatted for natural agent reasoning without excessive JSON overhead.
 
+### Lightweight Indexing & Token Optimization Tools (Recommended for Co-Writers)
+
+| Tool | Type | Description |
+| :--- | :--- | :--- |
+| `get_chat_overview` | Index | Lightweight overview of all messages in the chat (~80–150 tokens) with session ID, container character, scenario hash, total messages, per-message hashes, word counts, and swipe counts. Ideal for detecting message edits or new messages between turns. |
+| `get_message` | Context | Granular fetch of a single message's full text, sender name, swipe info, and attached images by its `message_id`. |
+| `get_last_message` | Context | Fetches solely the latest message in the active chat. Ideal for continuing/appending text (`/message-edit append=true`) with minimal token usage. |
+| `list_active_lore` | Index | Lists all active lorebooks and constant entries with entry ID (`entry_id`), title, and content hash (~50–80 tokens). |
+| `get_lore_entry` | Context | Granularly fetches a single lore entry by its `book` and `entry_id`. |
+
+### Full Context & History Tools
+
 | Tool | Type | Description |
 | :--- | :--- | :--- |
 | `get_full_context` | Context | Retrieves the complete assembled scene context (Writing Instructions, Active Lorebook entries, Scenario) excluding chat history. |
 | `get_current_lore` | Context | Retrieves only the active World Info / Lorebook entries (blue / constant mode) for the active scene. |
-| `get_chat_scenario` | Context | Retrieves only the active Scenario section for the current chat. |
+| `get_chat_scenario` | Context | Retrieves only the active Scenario section for the current chat, prefixed with `[Scenario Hash: ...]`. |
 | `get_writing_instructions` | Context | Retrieves only the system writing instructions and style guidelines. |
-| `get_chat_history` | History | Fetches chat messages with sender names, swipe info, and **attached image filenames and disk paths**. Supports querying full history or a custom `limit`. |
-| `get_chat_history_for_swipe` | History | Fetches all chat messages **excluding the very last message**, designed specifically for drafting alternative swipes (`/swipes-add`). |
-| `get_current_context` | Context | High-level status check: returns chat ID, group name, container character, active lore titles, and latest message preview. |
+| `get_chat_history` | History | Fetches chat messages with sender names, swipe info, and attached image filenames and disk paths. Supports `limit` (default: 30) and `since_id` (returns only messages logged after the given ID for delta fetching). |
+| `get_chat_history_for_swipe` | History | Fetches chat messages **excluding the very last message**, designed specifically for drafting alternative swipes (`/swipes-add`). |
+| `get_current_context` | Context | High-level status check: returns chat ID, group name, container character, scenario hash, active lore titles with hashes, and latest message preview. |
+
+### Chat Action & Utility Tools
+
+| Tool | Type | Description |
+| :--- | :--- | :--- |
 | `post_character_message` | Action | Injects narrative text into the chat. Supports `swipe: true` (`/swipes-add`) or `append: true` (`/message-edit append=true`). |
 | `post_user_message` | Action | Sends a message attributed to the user with optional automated character reply trigger (`triggerReply: true`). |
 | `post_system_message` | Action | Injects a narrator or system instruction note into the chat. |

@@ -68,15 +68,27 @@ Appends text to the end of the current/last message:
 
 All SillyTavern context retrieval and posting tools return clean, structured text sections without token-heavy JSON or artificial role wrappers:
 
+### Granular & Token-Optimized Retrieval Tools (Preferred)
+
 | Tool | Purpose | Primary Use Case |
 | :--- | :--- | :--- |
-| `get_full_context` | Retrieves the complete assembled scene context (Writing Instructions, Active Lore, Scenario) formatted in clear sections, excluding chat history. | Comprehensive scene preparation before writing. |
-| `get_current_lore` | Retrieves only the active World Info / Lorebook entries (blue / constant mode) for the active scene. | Quick grounding in character sheets, factions, creatures, or world mechanics. |
-| `get_chat_scenario` | Retrieves only the active Scenario section for the current chat. | Checking scene setup or overarching plot scenario. |
-| `get_writing_instructions` | Retrieves only the system writing instructions and style guidelines. | Confirming perspective, dialogue formatting, and word count targets. |
-| `get_chat_history` | Fetches chat messages in clean structured text, including message numbers, sender names, swipe info, and **attached image filenames and disk paths**. | Reviewing dialogue, narrative continuity, and attachments. **Query for all past messages** (not just recent ones) unless explicitly asked otherwise. |
-| `get_chat_history_for_swipe` | Fetches chat messages **excluding the very last message**. | Preparing context for writing an alternative swipe (`/swipes-add`) across **all messages before the last**. |
-| `get_current_context` | Retrieves chat ID, group name, container character, active lore titles, and latest message preview. | Fast status check of the active chat. |
+| `get_chat_overview` | Returns lightweight metadata for all chat messages (~80–150 tokens): session ID, scenario hash, total count, per-message hashes, word counts, and swipe counts. | Turn-by-turn verification to detect new messages, message edits, or scenario changes with minimal tokens. |
+| `get_message` | Granularly fetches the full text, sender name, swipe info, and attached images for a single message by `message_id`. | Retrieving only a specific edited or requested message. |
+| `get_last_message` | Granularly fetches solely the latest message in the active chat. | Quick context check before appending (`/message-edit append=true`) or inspecting the latest prompt. |
+| `list_active_lore` | Lists all active lorebooks and constant entries with `book`, `entry_id`, `title`, and content `hash` (~50–80 tokens). | Fast inspection of active world lore to detect changes or additions. |
+| `get_lore_entry` | Granularly fetches a single lore entry by its `book` and `entry_id`. | Loading or updating specific character or world entries when their hash changes. |
+
+### Full Context & History Tools
+
+| Tool | Purpose | Primary Use Case |
+| :--- | :--- | :--- |
+| `get_full_context` | Retrieves the complete assembled scene context (Writing Instructions, Active Lore, Scenario) formatted in clear sections, excluding chat history. | Comprehensive scene preparation on the very first turn of a new session. |
+| `get_current_lore` | Retrieves only the active World Info / Lorebook entries (blue / constant mode) for the active scene. | Quick grounding across all active lore entries at once. |
+| `get_chat_scenario` | Retrieves only the active Scenario section for the current chat, prefixed with `[Scenario Hash: ...]`. | Checking scene setup or overarching plot scenario when its hash changes. |
+| `get_writing_instructions` | Retrieves only the system writing instructions and style guidelines from SillyTavern. | Confirming custom instructions configured directly in ST if updated by the user. |
+| `get_chat_history` | Fetches chat messages in clean structured text, including message numbers, sender names, swipe info, and attached image filenames and disk paths. Supports `limit` (default: 30) and `since_id` (fetches only messages after `since_id`). | Initial chat loading or fetching delta messages (`since_id`). |
+| `get_chat_history_for_swipe` | Fetches chat messages **excluding the very last message**. | Preparing context for writing an alternative swipe (`/swipes-add`) across all messages before the last. |
+| `get_current_context` | Retrieves chat ID, group name, container character, scenario hash, active lore titles with hashes, and latest message preview. | Fast status check of the active chat. |
 | `execute_slash_command` | Executes any SillyTavern slash command directly. | Executing `/sendas`, `/swipes-add`, or `/message-edit`. |
 | `post_character_message` | Helper wrapper around the core commands. | Convenient tool call supporting `swipe: true` (`/swipes-add`) or `append: true` (`/message-edit append=true`). |
 | `post_user_message` | Posts a message attributed to the user in the active chat. | Sending user dialogue or scene triggers. |
@@ -106,7 +118,7 @@ Images:
 
 ## 6. Writing & Formatting Guidelines
 
-These guidelines represent the baseline standards for scene continuations. Always check the **`get_writing_instructions`** endpoint (or the Writing Instructions section in **`get_full_context`**) before drafting, as instructions and constraints configured directly in SillyTavern override or supplement these defaults. This allows modifying writing instructions, perspective, length, or style rules directly in SillyTavern without having to update this skill file.
+These guidelines represent the baseline standards for scene continuations. Because they are codified directly here in `SKILL.md`, **there is no need to query `get_writing_instructions` on every turn**. Only query `get_writing_instructions` if the user explicitly mentions having added new or modified writing instructions directly within SillyTavern.
 
 ### Core Baseline Conventions
 - **Perspective & Tense:** Third-person omniscient, past tense.
@@ -128,16 +140,35 @@ These guidelines represent the baseline standards for scene continuations. Alway
 
 ---
 
-## 7. Standard Step-by-Step Workflow
+## 7. Step-by-Step Optimized Workflow
 
-1. **Inspect Context & Full History:**
-   - Call `get_full_context` (or granular endpoints `get_current_lore`, `get_writing_instructions`, `get_chat_scenario`).
-   - Query for **all past messages** using `get_chat_history` (or `get_chat_history_for_swipe` for alternative swipes) to maintain complete context over earlier events, unless explicitly instructed by the user to limit the scope.
-2. **Review Visuals (Only Upon Request):**
-   - If—and only if—the user has requested image analysis, inspect any distinct attached images with `read_file`.
-3. **Receive Direction:** Receive the user's instructions or creative prompt for the continuation.
-4. **Draft the Continuation:** Write the continuation matching the narrative tone, active lore, and previous character dynamics.
-5. **Post to SillyTavern:**
-   - Standard continuation: `/sendas name=Storyteller <Narrative Text>`
-   - Alternative swipe: `/swipes-add <Narrative Text>`
-   - Continue existing message: `/message-edit append=true <Narrative Text>`
+To maintain full context while minimizing token consumption, follow this hash-based caching pattern:
+
+### A. Turn 1 (Session Start / Cold Initialization)
+1. **Initial History Fetch:**
+   - Call `get_chat_history(limit=30)` to load the full active chat. Record the message IDs and their hashes.
+2. **Initial Lore Fetch:**
+   - Call `list_active_lore`. For relevant active lore entries, fetch them via `get_lore_entry(book, entry_id)` and retain their content and hashes in working memory.
+3. **Initial Scenario Fetch:**
+   - Call `get_chat_scenario` to get the scene setup and overarching plot, noting the `[Scenario Hash: ...]`.
+
+### B. Subsequent Turns (Lightweight Verification ~150–250 Tokens)
+Do **not** re-query `get_full_context` or the entire chat history. Instead:
+1. **Chat & Scenario Check:**
+   - Call `get_chat_overview`.
+   - **Check Scenario Hash:** If the scenario hash changed from Turn 1, fetch `get_chat_scenario`.
+   - **Check Message Hashes:** Compare the message hashes against previously recorded IDs:
+     - If an earlier message ID was edited (hash changed), retrieve only that message with `get_message(message_id)`.
+     - If new messages were added since your last turn:
+       - For standard continuation or user input, call `get_chat_history(since_id=last_known_id)` to delta-fetch only the new messages.
+       - If the user simply asks to append or continue (`/message-edit append=true`), call `get_last_message` for immediate context with minimal tokens.
+2. **Active Lore Check:**
+   - Call `list_active_lore`.
+   - Check if any entries were activated, deactivated, or modified:
+     - If a lore entry's hash changed or a new active entry appears, fetch only that entry via `get_lore_entry(book, entry_id)`.
+3. **Review Visuals (Only Upon Request):**
+   - If—and only if—the user has requested image analysis, inspect any new distinct attached images with `read_file`.
+4. **Draft & Post:**
+   - Standard continuation: `/sendas name=Storyteller <Narrative Text>` (or `post_character_message(text=...)`)
+   - Alternative swipe: `/swipes-add <Narrative Text>` (or `post_character_message(text=..., swipe=true)`)
+   - Continue existing message: `/message-edit append=true <Narrative Text>` (or `post_character_message(text=..., append=true)`)

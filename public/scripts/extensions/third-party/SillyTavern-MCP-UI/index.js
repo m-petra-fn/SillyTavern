@@ -179,7 +179,8 @@ async function syncState() {
 
     const historyLimit = parseInt($('#mcp_chat_history_limit').val(), 10) || 30;
     const chatList = context.chat || [];
-    const recentChat = chatList.slice(-historyLimit).map(m => {
+
+    const mapMessage = (m, i) => {
         const images = [];
         const extractFn = (rawPath) => (typeof rawPath === 'string' ? rawPath.replace(/\\/g, '/').split('/').pop() : undefined);
 
@@ -192,6 +193,7 @@ async function syncState() {
         if (m.extra?.media) images.push({ slot: 'extra_media', label: 'Attached Media', filename: extractFn(m.extra.media), path: m.extra.media });
 
         return {
+            id: i,
             name: m.name,
             is_user: !!m.is_user,
             is_system: !!m.is_system,
@@ -206,7 +208,16 @@ async function syncState() {
             portraitImage: m.portraitImage,
             images: images
         };
-    });
+    };
+
+    const allChat = chatList.map(mapMessage);
+    const recentChat = allChat.slice(-historyLimit);
+
+    // Extract active world info / lorebooks
+    const globalWi = context.world_info?.globalSelect || context.selected_world_info || [];
+    const chatWi = context.chatMetadata?.world_info ? [context.chatMetadata.world_info] : [];
+    const charWi = context.chatMetadata?.character_world_info ? [context.chatMetadata.character_world_info] : [];
+    const activeLorebooks = [...new Set([...(Array.isArray(globalWi) ? globalWi : [globalWi]), ...chatWi, ...charWi])].filter(Boolean);
 
     // Extract active prompt settings
     let promptSettings = null;
@@ -228,6 +239,8 @@ async function syncState() {
         scenario: context.chatMetadata?.scenario || characterData?.scenario || '',
         generationActive: !!context.onlineStatus,
         recentChat,
+        allChat,
+        activeLorebooks,
         promptSettings,
         assembledPrompt: lastAssembledPrompt
     };

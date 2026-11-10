@@ -130,8 +130,11 @@ async function processBridgeRequest(req, res, pathname, body) {
             group: body?.group || null,
             userName: body?.userName || null,
             chatId: body?.chatId || null,
+            scenario: body?.scenario || null,
             generationActive: !!body?.generationActive,
             recentChat: Array.isArray(body?.recentChat) ? body.recentChat : [],
+            allChat: Array.isArray(body?.allChat) ? body.allChat : (Array.isArray(body?.recentChat) ? body.recentChat : []),
+            activeLorebooks: Array.isArray(body?.activeLorebooks) ? body.activeLorebooks : [],
             activeLore: body?.activeLore || null,
             promptSettings: body?.promptSettings || null,
             assembledPrompt: body?.assembledPrompt || (body?.chatId === latestState.chatId ? latestState.assembledPrompt : null)

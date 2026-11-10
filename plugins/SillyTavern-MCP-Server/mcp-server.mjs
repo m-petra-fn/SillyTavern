@@ -2,12 +2,24 @@
 import readline from 'node:readline';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 // Default to dedicated bridge port 8005, with fallback options
 const ST_BASE = process.env.SILLYTAVERN_URL || `http://127.0.0.1:${process.env.SILLYTAVERN_MCP_PORT || '8005'}`;
 
 const IMAGES_ROOT = 'C:/Petra/Jogos/SillyTavern/data/default-user/user/images';
 const MESSAGE_IMAGES_ROOT = 'C:/Petra/Jogos/SillyTavern/data/default-user/user/images/messageImages';
+const WORLDS_DIR = 'C:/Petra/Jogos/SillyTavern/data/default-user/worlds';
+
+function computeHash(content) {
+    if (!content || typeof content !== 'string') return '00000000';
+    return crypto.createHash('md5').update(content.trim()).digest('hex').slice(0, 8);
+}
+
+function countWords(str) {
+    if (!str || typeof str !== 'string') return 0;
+    return str.trim().split(/\s+/).filter(Boolean).length;
+}
 
 /**
  * Resolve an image filename and absolute path on disk
@@ -123,9 +135,158 @@ function extractContextSections(promptObj, fallbackData = {}) {
 }
 
 /**
+ * Extract active lore entries with book name, uid, title, hash, and content
+ */
+function getActiveLoreEntries(fallbackData = {}, promptObj = null) {
+    const activeBooks = fallbackData?.activeLorebooks || [];
+    const entries = [];
+    const seenKeys = new Set();
+
+    // 1. Scan active lorebook JSON files on disk
+    if (Array.isArray(activeBooks) && activeBooks.length > 0) {
+        for (const book of activeBooks) {
+            const filename = book.endsWith('.json') ? book : `${book}.json`;
+            const filePath = path.join(WORLDS_DIR, filename);
+            if (fs.existsSync(filePath)) {
+                try {
+                    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                    const rawEntries = Object.values(raw.entries || {});
+                    for (const e of rawEntries) {
+                        if (e.constant && !e.disable) {
+                            const hash = computeHash(e.content);
+                            const key = `${book.toLowerCase()}:${e.uid}`;
+                            seenKeys.add(key);
+                            entries.push({
+                                book,
+                                entry_id: e.uid,
+                                title: e.comment || 'Untitled',
+                                content: e.content || '',
+                                hash,
+                                keys: Array.isArray(e.key) ? e.key : []
+                            });
+                        }
+                    }
+                } catch (_) {}
+            }
+        }
+    }
+
+    // 2. Also cross-reference with <world_info> in assembled prompt
+    const { lore } = extractContextSections(promptObj, fallbackData);
+    if (lore) {
+        const regex = /^#\s+([^\n]+)\n([\s\S]*?)(?=(?:^#\s+[^\n]+)|\s*$)/gm;
+        let match;
+        let pIndex = 0;
+        while ((match = regex.exec(lore)) !== null) {
+            const title = match[1].trim();
+            const content = match[2].trim();
+            const hash = computeHash(content);
+
+            const existing = entries.find(e => e.title.toLowerCase() === title.toLowerCase());
+            if (!existing) {
+                entries.push({
+                    book: 'Active Lore',
+                    entry_id: pIndex++,
+                    title,
+                    content,
+                    hash,
+                    keys: []
+                });
+            }
+        }
+    }
+
+    return entries;
+}
+
+/**
+ * Extract normalized chat messages from state with message IDs, hashes, word counts, and images
+ */
+function getChatMessages(data = {}) {
+    const rawList = Array.isArray(data.allChat) && data.allChat.length > 0
+        ? data.allChat
+        : (Array.isArray(data.recentChat) ? data.recentChat : []);
+
+    const enriched = enrichMessagesWithImages(rawList, data.chatId);
+    return enriched.map((m, i) => {
+        const id = (typeof m.id === 'number') ? m.id : i;
+        const text = m.message || '';
+        return {
+            id,
+            name: m.name || 'Character',
+            is_user: !!m.is_user,
+            is_system: !!m.is_system,
+            message: text,
+            send_date: m.send_date,
+            swipes: m.swipes || 1,
+            swipe_id: m.swipe_id ?? 0,
+            images: m.images || [],
+            hash: computeHash(text),
+            words: countWords(text)
+        };
+    });
+}
+
+/**
  * Standard Model Context Protocol (MCP) Tools definition
  */
 const TOOLS = [
+    {
+        name: 'get_chat_overview',
+        description: 'Get a lightweight overview of all messages in the chat (~80-150 tokens) with session ID, scenario hash, total messages, and per-message hashes, word counts, and swipe counts. Use this to detect if earlier messages were edited or new messages added.',
+        inputSchema: {
+            type: 'object',
+            properties: {}
+        }
+    },
+    {
+        name: 'get_message',
+        description: 'Get the full text, sender name, swipe info, and attached images for a single message by its 0-indexed ID.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                message_id: {
+                    type: 'integer',
+                    description: '0-indexed ID of the message to retrieve'
+                }
+            },
+            required: ['message_id']
+        }
+    },
+    {
+        name: 'get_last_message',
+        description: 'Get solely the latest message in the active chat with full text, sender name, swipe count, and attached images. Ideal for continuing/appending text (/message-edit append=true) with zero token bloat.',
+        inputSchema: {
+            type: 'object',
+            properties: {}
+        }
+    },
+    {
+        name: 'list_active_lore',
+        description: 'List all currently active lorebooks and their active entries, with lorebook name, entry ID (uid), title, and content hash (~50-120 tokens). Use this to check which lore is active and whether any entry was modified.',
+        inputSchema: {
+            type: 'object',
+            properties: {}
+        }
+    },
+    {
+        name: 'get_lore_entry',
+        description: 'Get the full text content of a single specific lore entry by lorebook name and entry ID (uid). Use this to fetch only new or modified entries.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                book: {
+                    type: 'string',
+                    description: 'Name of the lorebook (e.g. "[Chalcoa] Bronze Variants")'
+                },
+                entry_id: {
+                    type: 'integer',
+                    description: 'Unique entry ID (uid) within the lorebook'
+                }
+            },
+            required: ['book', 'entry_id']
+        }
+    },
     {
         name: 'get_full_context',
         description: 'Get all scene context sections (Writing Instructions, Active Lore, and Scenario) combined in clean structured text format without roles and without chat history.',
@@ -144,7 +305,7 @@ const TOOLS = [
     },
     {
         name: 'get_chat_scenario',
-        description: 'Get only the active Scenario text for the current chat.',
+        description: 'Get the active Scenario text for the current chat, prefixed with its content hash.',
         inputSchema: {
             type: 'object',
             properties: {}
@@ -160,7 +321,7 @@ const TOOLS = [
     },
     {
         name: 'get_current_context',
-        description: 'Get a structured summary of the active session: group name, container character, user name, chat ID, active lore titles, and last message with images.',
+        description: 'Get a structured summary of the active session: group name, container character, user name, chat ID, scenario hash, lore hash, active lore titles, and last message preview.',
         inputSchema: {
             type: 'object',
             properties: {}
@@ -168,7 +329,7 @@ const TOOLS = [
     },
     {
         name: 'get_chat_history',
-        description: 'Get recent chat messages in clean structured text format with sender name, swipe info, timestamps, attached image filenames/paths, and message text.',
+        description: 'Get chat messages in clean structured text format with sender name, swipe info, timestamps, attached image filenames/paths, and message text. Supports delta queries via since_id.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -176,6 +337,10 @@ const TOOLS = [
                     type: 'integer',
                     description: 'Number of messages to retrieve (default: 30, max: 100)',
                     default: 30
+                },
+                since_id: {
+                    type: 'integer',
+                    description: 'Optional 0-indexed message ID. If specified, returns only messages logged after this ID (delta messages).'
                 }
             }
         }
@@ -498,8 +663,9 @@ async function handleToolCall(name, args) {
         case 'get_chat_scenario': {
             const { promptObj, fallbackData } = await getContextData();
             const { scenario } = extractContextSections(promptObj, fallbackData);
+            const hash = computeHash(scenario);
             const text = scenario
-                ? `=== SECTION: SCENARIO ===\n${scenario}`
+                ? `[Scenario Hash: ${hash}]\n\n=== SECTION: SCENARIO ===\n${scenario}`
                 : 'No active scenario found in current prompt.';
             return { content: [{ type: 'text', text }] };
         }
@@ -513,34 +679,224 @@ async function handleToolCall(name, args) {
             return { content: [{ type: 'text', text }] };
         }
 
+        case 'get_chat_overview': {
+            const stateRes = await fetchState().catch(() => ({}));
+            const data = stateRes?.data || {};
+            const { promptObj, fallbackData } = await getContextData();
+            const { scenario } = extractContextSections(promptObj, fallbackData);
+            const scenHash = computeHash(scenario);
+            const msgs = getChatMessages(data);
+
+            let out = '=== ACTIVE SESSION OVERVIEW ===\n';
+            out += `Session ID: ${data.chatId || 'Active Chat'}\n`;
+            out += `Group: ${data.group?.name || 'None'}\n`;
+            out += `Container Character: ${data.character?.name || 'Storyteller'}\n`;
+            out += `User Name: ${data.userName || 'User'}\n`;
+            out += `Scenario Hash: ${scenHash} (Words: ${countWords(scenario)})\n`;
+            out += `Total Messages: ${msgs.length}\n\n`;
+
+            if (msgs.length === 0) {
+                out += 'No messages logged in session.';
+            } else {
+                out += 'Messages:\n';
+                out += msgs.map(m => {
+                    const role = m.is_user ? 'User' : (m.is_system ? 'System' : m.name);
+                    const swipeInfo = (m.swipes > 1) ? `, Swipes: ${m.swipe_id + 1}/${m.swipes}` : '';
+                    let line = `- [#${m.id}] [${role}] (Words: ${m.words}, Hash: ${m.hash}${swipeInfo})`;
+                    if (Array.isArray(m.images) && m.images.length > 0) {
+                        const imgSummaries = m.images.map(img => `${img.label}: ${img.filename}`).join(', ');
+                        line += `\n  Images: [${imgSummaries}]`;
+                    }
+                    return line;
+                }).join('\n');
+            }
+
+            return { content: [{ type: 'text', text: out }] };
+        }
+
+        case 'get_message': {
+            const msgId = Number(args?.message_id);
+            if (isNaN(msgId)) throw new Error('Missing or invalid parameter: message_id');
+            const stateRes = await fetchState().catch(() => ({}));
+            const data = stateRes?.data || {};
+            const msgs = getChatMessages(data);
+            const msg = msgs.find(m => m.id === msgId) || (msgId >= 0 && msgId < msgs.length ? msgs[msgId] : null);
+
+            if (!msg) {
+                return {
+                    content: [{
+                        type: 'text',
+                        text: `Message #${msgId} not found in the active session.`
+                    }]
+                };
+            }
+
+            const role = msg.is_user ? 'User' : (msg.is_system ? 'System' : msg.name);
+            const swipeInfo = (msg.swipes > 1) ? ` (Swipe ${msg.swipe_id + 1}/${msg.swipes})` : '';
+            let header = `[Message #${msg.id}] [${role}]${swipeInfo} (Hash: ${msg.hash}, Words: ${msg.words})`;
+            if (msg.send_date) header += `\nDate: ${msg.send_date}`;
+
+            let imgBlock = '';
+            if (Array.isArray(msg.images) && msg.images.length > 0) {
+                imgBlock = '\nImages:\n' + msg.images.map(img => `  - ${img.label}: ${img.filename}\n    Path: ${img.path}`).join('\n');
+            }
+
+            return {
+                content: [{
+                    type: 'text',
+                    text: `${header}${imgBlock}\nText:\n${msg.message || ''}`
+                }]
+            };
+        }
+
+        case 'get_last_message': {
+            const stateRes = await fetchState().catch(() => ({}));
+            const data = stateRes?.data || {};
+            const msgs = getChatMessages(data);
+
+            if (msgs.length === 0) {
+                return {
+                    content: [{
+                        type: 'text',
+                        text: 'No messages found in the active session.'
+                    }]
+                };
+            }
+
+            const last = msgs[msgs.length - 1];
+            const role = last.is_user ? 'User' : (last.is_system ? 'System' : last.name);
+            const swipeInfo = (last.swipes > 1) ? ` (Swipe ${last.swipe_id + 1}/${last.swipes})` : '';
+            let header = `[Message #${last.id}] [${role}]${swipeInfo} (Hash: ${last.hash}, Words: ${last.words})`;
+            if (last.send_date) header += `\nDate: ${last.send_date}`;
+
+            let imgBlock = '';
+            if (Array.isArray(last.images) && last.images.length > 0) {
+                imgBlock = '\nImages:\n' + last.images.map(img => `  - ${img.label}: ${img.filename}\n    Path: ${img.path}`).join('\n');
+            }
+
+            return {
+                content: [{
+                    type: 'text',
+                    text: `${header}${imgBlock}\nText:\n${last.message || ''}`
+                }]
+            };
+        }
+
+        case 'list_active_lore': {
+            const { promptObj, fallbackData } = await getContextData();
+            const stateRes = await fetchState().catch(() => ({}));
+            const data = stateRes?.data || {};
+            const combinedFallback = { ...fallbackData, ...data };
+            const loreEntries = getActiveLoreEntries(combinedFallback, promptObj);
+
+            if (loreEntries.length === 0) {
+                return {
+                    content: [{
+                        type: 'text',
+                        text: 'No active lore entries found.'
+                    }]
+                };
+            }
+
+            let out = '=== ACTIVE LOREBOOK ENTRIES ===\n';
+            out += loreEntries.map(e => {
+                const words = countWords(e.content);
+                const keysStr = (e.keys && e.keys.length > 0) ? ` | Keys: [${e.keys.slice(0, 5).join(', ')}]` : '';
+                return `- Book: "${e.book}" | ID: ${e.entry_id} | Title: "${e.title}" | Hash: ${e.hash} (Words: ${words})${keysStr}`;
+            }).join('\n');
+
+            return { content: [{ type: 'text', text: out }] };
+        }
+
+        case 'get_lore_entry': {
+            const book = String(args?.book || '').trim();
+            const entryId = args?.entry_id;
+            if (!book || entryId === undefined || entryId === null) {
+                throw new Error('Parameters "book" and "entry_id" are required.');
+            }
+
+            const { promptObj, fallbackData } = await getContextData();
+            const stateRes = await fetchState().catch(() => ({}));
+            const data = stateRes?.data || {};
+            const combinedFallback = { ...fallbackData, ...data };
+            const loreEntries = getActiveLoreEntries(combinedFallback, promptObj);
+
+            let entry = loreEntries.find(e =>
+                (e.book.toLowerCase() === book.toLowerCase() || book === '*') &&
+                String(e.entry_id) === String(entryId)
+            );
+
+            // If not found in active list, try directly loading the world file from disk
+            if (!entry) {
+                const filename = book.endsWith('.json') ? book : `${book}.json`;
+                const filePath = path.join(WORLDS_DIR, filename);
+                if (fs.existsSync(filePath)) {
+                    try {
+                        const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                        const rawEntries = Object.values(raw.entries || {});
+                        const found = rawEntries.find(e => String(e.uid) === String(entryId));
+                        if (found) {
+                            entry = {
+                                book,
+                                entry_id: found.uid,
+                                title: found.comment || 'Untitled',
+                                content: found.content || '',
+                                hash: computeHash(found.content),
+                                keys: Array.isArray(found.key) ? found.key : []
+                            };
+                        }
+                    } catch (_) {}
+                }
+            }
+
+            if (!entry) {
+                return {
+                    content: [{
+                        type: 'text',
+                        text: `Lore entry not found for book: "${book}", entry_id: ${entryId}`
+                    }]
+                };
+            }
+
+            let out = `=== LORE ENTRY: [${entry.book}] #${entry.entry_id} - ${entry.title} ===\n`;
+            out += `Hash: ${entry.hash}\n`;
+            if (entry.keys && entry.keys.length > 0) {
+                out += `Keys: ${entry.keys.join(', ')}\n`;
+            }
+            out += `\nContent:\n${entry.content}`;
+
+            return { content: [{ type: 'text', text: out }] };
+        }
+
         case 'get_current_context': {
             const { promptObj, fallbackData } = await getContextData();
             const stateRes = await fetchState().catch(() => ({}));
             const data = stateRes?.data || {};
-            const { lore } = extractContextSections(promptObj, fallbackData);
-
-            // Extract titles from active lore
-            const loreTitles = lore
-                ? (lore.match(/^#\s+[^\n]+/gm) || []).map(t => t.replace(/^#\s*/, '').trim())
-                : [];
+            const combinedFallback = { ...fallbackData, ...data };
+            const { scenario } = extractContextSections(promptObj, fallbackData);
+            const scenHash = computeHash(scenario);
+            const loreEntries = getActiveLoreEntries(combinedFallback, promptObj);
+            const msgs = getChatMessages(data);
 
             let out = '=== ACTIVE SESSION SUMMARY ===\n';
             out += `Session: ${data.chatId || 'Active Chat'}\n`;
             out += `Group: ${data.group?.name || 'None'}\n`;
             out += `Container Character: ${data.character?.name || 'Storyteller'}\n`;
             out += `User Name: ${data.userName || 'User'}\n`;
-            out += `Total Messages: ${data.recentChat?.length || 0}\n\n`;
+            out += `Scenario Hash: ${scenHash}\n`;
+            out += `Total Messages: ${msgs.length}\n\n`;
 
             out += '=== ACTIVE LORE ENTRIES ===\n';
-            out += (loreTitles.length > 0 ? loreTitles.map(t => `- ${t}`).join('\n') : 'No active lore detected.') + '\n\n';
+            out += (loreEntries.length > 0
+                ? loreEntries.map(e => `- [${e.book}] #${e.entry_id} "${e.title}" (Hash: ${e.hash})`).join('\n')
+                : 'No active lore detected.') + '\n\n';
 
-            const rawMessages = (data.recentChat || []).slice(-1);
-            const enriched = enrichMessagesWithImages(rawMessages, data.chatId);
-            if (enriched.length > 0) {
-                const last = enriched[0];
+            if (msgs.length > 0) {
+                const last = msgs[msgs.length - 1];
+                const role = last.is_user ? 'User' : (last.is_system ? 'System' : last.name);
                 const swipeInfo = (last.swipes > 1) ? ` (Swipe ${last.swipe_id + 1}/${last.swipes})` : '';
                 out += `=== LATEST MESSAGE PREVIEW ===\n`;
-                out += `[${last.name || 'Character'}]${swipeInfo}\n`;
+                out += `[${role}]${swipeInfo} (Hash: ${last.hash})\n`;
                 if (Array.isArray(last.images) && last.images.length > 0) {
                     out += 'Images:\n' + last.images.map(img => `  - ${img.label}: ${img.filename}\n    Path: ${img.path}`).join('\n') + '\n';
                 }
@@ -551,60 +907,34 @@ async function handleToolCall(name, args) {
         }
 
         case 'get_chat_history': {
-            const stateRes = await fetchState();
-            const data = stateRes.data || {};
+            const stateRes = await fetchState().catch(() => ({}));
+            const data = stateRes?.data || {};
             const limit = Math.min(Number(args?.limit) || 30, 100);
-            let allMessages = Array.isArray(data.recentChat) ? data.recentChat : [];
+            const sinceId = (args?.since_id !== undefined && args?.since_id !== null) ? Number(args.since_id) : null;
 
-            if (allMessages.length === 0) {
-                try {
-                    const chatDir = 'C:/Petra/Jogos/SillyTavern/data/default-user/group chats';
-                    if (fs.existsSync(chatDir)) {
-                        const files = fs.readdirSync(chatDir).filter(f => f.endsWith('.jsonl'));
-                        if (files.length > 0) {
-                            files.sort((a, b) => fs.statSync(path.join(chatDir, b)).mtimeMs - fs.statSync(path.join(chatDir, a)).mtimeMs);
-                            const lines = fs.readFileSync(path.join(chatDir, files[0]), 'utf8').trim().split('\n').slice(1);
-                            allMessages = lines.map(l => {
-                                try {
-                                    const parsed = JSON.parse(l);
-                                    return {
-                                        name: parsed.name,
-                                        is_user: parsed.is_user,
-                                        is_system: parsed.is_system,
-                                        send_date: parsed.send_date,
-                                        message: parsed.mes || parsed.message,
-                                        swipe_id: parsed.swipe_id,
-                                        swipes: parsed.swipes?.length || 1,
-                                        force_avatar: parsed.force_avatar,
-                                        secondImage: parsed.secondImage,
-                                        thirdImage: parsed.thirdImage,
-                                        fourthImage: parsed.fourthImage,
-                                        portraitImage: parsed.portraitImage,
-                                        extra: parsed.extra
-                                    };
-                                } catch (_) { return null; }
-                            }).filter(Boolean);
-                        }
-                    }
-                } catch (_) {}
+            let msgs = getChatMessages(data);
+
+            if (sinceId !== null && !isNaN(sinceId)) {
+                msgs = msgs.filter(m => m.id > sinceId);
             }
 
-            const rawMessages = allMessages.slice(-limit);
-            const enriched = enrichMessagesWithImages(rawMessages, data.chatId);
+            const rawMessages = msgs.slice(-limit);
 
-            if (enriched.length === 0) {
+            if (rawMessages.length === 0) {
                 return {
                     content: [{
                         type: 'text',
-                        text: 'No chat history found in the active session.'
+                        text: sinceId !== null
+                            ? `No new chat messages found since ID ${sinceId}.`
+                            : 'No chat history found in the active session.'
                     }]
                 };
             }
 
-            const formatted = enriched.map((m, idx) => {
+            const formatted = rawMessages.map(m => {
                 const role = m.is_user ? 'User' : (m.is_system ? 'System' : (m.name || 'Storyteller'));
                 const swipeInfo = (m.swipes > 1) ? ` (Swipe ${m.swipe_id + 1}/${m.swipes})` : '';
-                let header = `[Message #${idx + 1}] [${role}]${swipeInfo}`;
+                let header = `[Message #${m.id}] [${role}]${swipeInfo}`;
                 if (m.send_date) header += `\nDate: ${m.send_date}`;
 
                 let imgBlock = '';
@@ -619,49 +949,15 @@ async function handleToolCall(name, args) {
         }
 
         case 'get_chat_history_for_swipe': {
-            const stateRes = await fetchState();
-            const data = stateRes.data || {};
+            const stateRes = await fetchState().catch(() => ({}));
+            const data = stateRes?.data || {};
             const limit = Math.min(Number(args?.limit) || 30, 100);
-            let allMessages = Array.isArray(data.recentChat) ? data.recentChat : [];
 
-            if (allMessages.length === 0) {
-                try {
-                    const chatDir = 'C:/Petra/Jogos/SillyTavern/data/default-user/group chats';
-                    if (fs.existsSync(chatDir)) {
-                        const files = fs.readdirSync(chatDir).filter(f => f.endsWith('.jsonl'));
-                        if (files.length > 0) {
-                            files.sort((a, b) => fs.statSync(path.join(chatDir, b)).mtimeMs - fs.statSync(path.join(chatDir, a)).mtimeMs);
-                            const lines = fs.readFileSync(path.join(chatDir, files[0]), 'utf8').trim().split('\n').slice(1);
-                            allMessages = lines.map(l => {
-                                try {
-                                    const parsed = JSON.parse(l);
-                                    return {
-                                        name: parsed.name,
-                                        is_user: parsed.is_user,
-                                        is_system: parsed.is_system,
-                                        send_date: parsed.send_date,
-                                        message: parsed.mes || parsed.message,
-                                        swipe_id: parsed.swipe_id,
-                                        swipes: parsed.swipes?.length || 1,
-                                        force_avatar: parsed.force_avatar,
-                                        secondImage: parsed.secondImage,
-                                        thirdImage: parsed.thirdImage,
-                                        fourthImage: parsed.fourthImage,
-                                        portraitImage: parsed.portraitImage,
-                                        extra: parsed.extra
-                                    };
-                                } catch (_) { return null; }
-                            }).filter(Boolean);
-                        }
-                    }
-                } catch (_) {}
-            }
-
+            const allMessages = getChatMessages(data);
             const priorMessages = allMessages.slice(0, -1);
             const rawMessages = priorMessages.slice(-limit);
-            const enriched = enrichMessagesWithImages(rawMessages, data.chatId);
 
-            if (enriched.length === 0) {
+            if (rawMessages.length === 0) {
                 return {
                     content: [{
                         type: 'text',
@@ -670,10 +966,10 @@ async function handleToolCall(name, args) {
                 };
             }
 
-            const formatted = enriched.map((m, idx) => {
+            const formatted = rawMessages.map(m => {
                 const role = m.is_user ? 'User' : (m.is_system ? 'System' : (m.name || 'Storyteller'));
                 const swipeInfo = (m.swipes > 1) ? ` (Swipe ${m.swipe_id + 1}/${m.swipes})` : '';
-                let header = `[Message #${idx + 1}] [${role}]${swipeInfo}`;
+                let header = `[Message #${m.id}] [${role}]${swipeInfo}`;
                 if (m.send_date) header += `\nDate: ${m.send_date}`;
 
                 let imgBlock = '';
