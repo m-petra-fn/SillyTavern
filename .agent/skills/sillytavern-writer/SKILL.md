@@ -233,3 +233,8 @@ flowchart TD
 1. **Inspect Tail Sentence Only:** Call `get_last_message` solely to check the final sentence/words so the continuation connects seamlessly.
 2. **Draft Extension:** Write the continuation text without summarizing or repeating what came before. Start immediately from the trailing action or thought.
 3. **Post:** Call `execute_slash_command("/message-edit append=true <Extension Text>")` (or `post_character_message(text=..., append=true)`).
+
+---
+
+### Phase 3: Completion & Clean Output
+After posting the message to SillyTavern, **only reply in the chat window with a brief confirmation that the task has been completed** (e.g., *"Continuation posted to SillyTavern."*). Do **not** re-print the full story text or scene continuation in the assistant chat interface, keeping the chat clean and free of duplicate text.
