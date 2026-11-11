@@ -77,7 +77,7 @@ All SillyTavern context retrieval and posting tools return clean, structured tex
 
 | Tool | Purpose | Primary Use Case |
 | :--- | :--- | :--- |
-| `get_context_diff` | Intelligent server-side context controller. Tracks baseline state per `chatId` and returns only what changed (scenario, active lore, or new/edited messages) in ~15–45 tokens. | **Primary turn-by-turn verification.** Call `full: true` on Turn 1 of a new session, and `get_context_diff()` on subsequent turns. |
+| `get_context_diff` | Intelligent server-side context controller. Tracks baseline state per `chatId` and returns only what changed (scenario, active lore, or new/edited messages) in ~15–45 tokens. | **Primary turn-by-turn verification.** Call `full: true` on Turn 1 of a new session, and `get_context_diff(include_content: true)` on subsequent turns. |
 | `get_chat_overview` | Returns lightweight metadata for all chat messages (~80–150 tokens): session ID, scenario hash, total count, per-message hashes, word counts, swipe counts, and image counts. | Inspecting full message indices if needed. |
 | `get_message` | Granularly fetches the full text, sender name, and swipe info for a single message by `message_id` (without image filenames). | Retrieving only a specific edited or requested message. |
 | `get_last_message` | Granularly fetches solely the latest message in the active chat (without image filenames). | Quick context check before appending (`/message-edit append=true`) or inspecting the latest prompt. |
@@ -158,13 +158,12 @@ These guidelines represent the baseline standards for scene continuations. Becau
    - This single call sets the server baseline for the active chat and returns the complete starting scene context (scenario, active lore, and recent chat history).
    - Retain these details in working memory for the duration of the session.
 
-#### Subsequent Turns (Delta Check ~15–45 Tokens)
-1. **Call `get_context_diff()`:**
-   - **If Status is `In sync (0 changes detected)`:** No changes in scenario, lore, or chat. Proceed directly to the requested action path below.
+#### Subsequent Turns (Single-Call Delta Verification)
+1. **Call `get_context_diff(include_content: true)`:**
+   - **If Status is `In sync (0 changes detected)`:** No changes in scenario, lore, or chat (~15 tokens). Proceed directly to the requested action path below.
    - **If Changes are Detected:**
-     - Review the delta (modified scenario, modified/new lore, or new/edited messages).
-     - If you passed `include_content: true`, the changed text is already embedded.
-     - Otherwise, fetch only the specific changed items via `get_message(message_id)` or `get_lore_entry(book, entry_id)` / `get_lore_entries`.
+     - Any modified scenario, modified/new lore, or new/edited messages are already fully included in the diff output with their complete content. No secondary queries or tool calls are needed.
+     - Review the reported changes and proceed directly to the requested action path below.
 2. **Visual Analysis (Only Upon Request):**
    - If—and only if—the user explicitly requested visual analysis, call `get_message_images(message_id=...)` to retrieve disk paths, then inspect new images via `read_file`.
 
@@ -179,7 +178,7 @@ Use when advancing the story with a brand-new narrative entry.
 
 ```mermaid
 flowchart TD
-    A["User Request: New Scene / Continuation"] --> B["Call get_context_diff()"]
+    A["User Request: New Scene / Continuation"] --> B["Call get_context_diff(include_content: true)"]
     B --> C{"Changes Detected?"}
     C -- "Yes" --> D["Incorporate reported delta into working memory"]
     C -- "No (In sync)" --> E["Proceed with existing context"]
@@ -206,7 +205,7 @@ Use when the user requests an alternative variation, branch, or take for the cur
 
 ```mermaid
 flowchart TD
-    A["User Request: Alternative Swipe (/swipes-add)"] --> B["Call get_context_diff()"]
+    A["User Request: Alternative Swipe (/swipes-add)"] --> B["Call get_context_diff(include_content: true)"]
     B --> C["Identify prior context before the latest message (N-1)"]
     C --> D["CRITICAL: Disregard and exclude the latest message text"]
     D --> E["Draft fresh alternative take from prior state (N-1)"]
@@ -224,7 +223,7 @@ Use when the user instructs to continue the ongoing thought or append directly t
 
 ```mermaid
 flowchart TD
-    A["User Request: Continue / Append to Last Message"] --> B["Call get_context_diff()"]
+    A["User Request: Continue / Append to Last Message"] --> B["Call get_context_diff(include_content: true)"]
     B --> C["Call get_last_message (Inspect tail sentence only)"]
     C --> D["Draft direct text extension (Seamless transition, no recap)"]
     D --> E["Execute: /message-edit append=true <Extension Text>"]

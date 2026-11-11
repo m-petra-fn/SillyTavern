@@ -214,10 +214,25 @@ async function syncState() {
     const recentChat = allChat.slice(-historyLimit);
 
     // Extract active world info / lorebooks
-    const globalWi = context.world_info?.globalSelect || context.selected_world_info || [];
+    const globalWi = [];
+    try {
+        $('#world_info option:selected').each((_, el) => {
+            const txt = $(el).text()?.trim();
+            if (txt) globalWi.push(txt);
+        });
+    } catch (_) {}
+    if (globalWi.length === 0 && context.world_info?.globalSelect) {
+        globalWi.push(...(Array.isArray(context.world_info.globalSelect) ? context.world_info.globalSelect : [context.world_info.globalSelect]));
+    }
     const chatWi = context.chatMetadata?.world_info ? [context.chatMetadata.world_info] : [];
-    const charWi = context.chatMetadata?.character_world_info ? [context.chatMetadata.character_world_info] : [];
-    const activeLorebooks = [...new Set([...(Array.isArray(globalWi) ? globalWi : [globalWi]), ...chatWi, ...charWi])].filter(Boolean);
+    const charWi = [];
+    if (context.characters?.[context.characterId]?.data?.character_book?.name) {
+        charWi.push(context.characters[context.characterId].data.character_book.name);
+    }
+    if (context.chatMetadata?.character_world_info) {
+        charWi.push(context.chatMetadata.character_world_info);
+    }
+    const activeLorebooks = [...new Set([...globalWi, ...chatWi, ...charWi])].filter(Boolean);
 
     // Extract active prompt settings
     let promptSettings = null;
@@ -544,6 +559,27 @@ jQuery(async () => {
         } catch (err) {
             toastr.error('Could not reach MCP Bridge server. Ensure SillyTavern is running with plugins enabled.');
             updateStatusUI(false);
+        }
+    });
+
+    $('#mcp_btn_clear_diff_cache').on('click', async () => {
+        const context = SillyTavern.getContext();
+        const chatId = context?.chatId || null;
+        try {
+            await resolveApiBase();
+            const res = await fetch(`${activeApiBase}/clear-context-cache`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chatId })
+            });
+            if (res.ok) {
+                const data = await res.json();
+                toastr.success(`Context diff cache cleared${data.chatId ? ' for ' + data.chatId : ''}.`);
+            } else {
+                toastr.error('Failed to clear context diff cache.');
+            }
+        } catch (err) {
+            toastr.error(`Error clearing context diff cache: ${err.message}`);
         }
     });
 

@@ -72,6 +72,13 @@ import { Router } from 'express';
 import { jsonParser } from '../../src/express-common.js';
 import http from 'node:http';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const CACHE_FILE = path.join(__dirname, 'context_cache.json');
 
 const MCP_PORT = process.env.SILLYTAVERN_MCP_PORT ? parseInt(process.env.SILLYTAVERN_MCP_PORT, 10) : 8005;
 
@@ -154,6 +161,29 @@ async function processBridgeRequest(req, res, pathname, body) {
         };
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(data));
+        return;
+    }
+
+    if (cleanPath === '/clear-context-cache' && req.method === 'POST') {
+        const targetChatId = body?.chatId || latestState.chatId;
+        let cleared = false;
+        try {
+            if (fs.existsSync(CACHE_FILE)) {
+                const cache = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+                if (targetChatId && cache[targetChatId]) {
+                    delete cache[targetChatId];
+                    fs.writeFileSync(CACHE_FILE, JSON.stringify(cache, null, 2), 'utf8');
+                    cleared = true;
+                } else if (!targetChatId) {
+                    fs.writeFileSync(CACHE_FILE, '{}', 'utf8');
+                    cleared = true;
+                }
+            }
+        } catch (err) {
+            console.error('[MCP Bridge] Error clearing context cache:', err);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, cleared, chatId: targetChatId }));
         return;
     }
 

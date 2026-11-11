@@ -154,6 +154,57 @@ function extractContextSections(promptObj, fallbackData = {}) {
     return { instructions, lore, scenario };
 }
 
+let diskLoreIndexCache = null;
+let diskLoreIndexTimestamp = 0;
+
+/**
+ * Scan all lorebook JSON files on disk and build an in-memory index
+ * Maps lowercase title/comment and markdown heading to entry data
+ */
+function getDiskLoreIndex() {
+    const now = Date.now();
+    if (diskLoreIndexCache && (now - diskLoreIndexTimestamp < 10000)) {
+        return diskLoreIndexCache;
+    }
+
+    const index = new Map();
+    if (fs.existsSync(WORLDS_DIR)) {
+        try {
+            const files = fs.readdirSync(WORLDS_DIR).filter(f => f.endsWith('.json'));
+            for (const file of files) {
+                const bookName = file.replace(/\.json$/, '');
+                try {
+                    const raw = JSON.parse(fs.readFileSync(path.join(WORLDS_DIR, file), 'utf8'));
+                    for (const e of Object.values(raw.entries || {})) {
+                        if (e.disable) continue;
+                        const entryData = {
+                            book: bookName,
+                            entry_id: e.uid,
+                            title: (e.comment || '').trim() || 'Untitled',
+                            content: (e.content || '').trim(),
+                            keys: Array.isArray(e.key) ? e.key : []
+                        };
+                        if (entryData.title && entryData.title !== 'Untitled') {
+                            index.set(entryData.title.toLowerCase(), entryData);
+                        }
+                        const hMatch = (e.content || '').match(/^#+\s*([^\n]+)/);
+                        if (hMatch) {
+                            const headingTitle = hMatch[1].trim().toLowerCase();
+                            if (!index.has(headingTitle)) {
+                                index.set(headingTitle, entryData);
+                            }
+                        }
+                    }
+                } catch (_) {}
+            }
+        } catch (_) {}
+    }
+
+    diskLoreIndexCache = index;
+    diskLoreIndexTimestamp = now;
+    return index;
+}
+
 /**
  * Extract active lore entries with book name, uid, title, hash, and content
  */
@@ -161,6 +212,7 @@ function getActiveLoreEntries(fallbackData = {}, promptObj = null) {
     const activeBooks = fallbackData?.activeLorebooks || [];
     const entries = [];
     const seenKeys = new Set();
+    const diskIndex = getDiskLoreIndex();
 
     // 1. Scan active lorebook JSON files on disk
     if (Array.isArray(activeBooks) && activeBooks.length > 0) {
@@ -173,14 +225,15 @@ function getActiveLoreEntries(fallbackData = {}, promptObj = null) {
                     const rawEntries = Object.values(raw.entries || {});
                     for (const e of rawEntries) {
                         if (e.constant && !e.disable) {
-                            const hash = computeHash(e.content);
+                            const content = (e.content || '').trim();
+                            const hash = computeHash(content);
                             const key = `${book.toLowerCase()}:${e.uid}`;
                             seenKeys.add(key);
                             entries.push({
                                 book,
                                 entry_id: e.uid,
-                                title: e.comment || 'Untitled',
-                                content: e.content || '',
+                                title: (e.comment || '').trim() || 'Untitled',
+                                content,
                                 hash,
                                 keys: Array.isArray(e.key) ? e.key : []
                             });
@@ -194,24 +247,59 @@ function getActiveLoreEntries(fallbackData = {}, promptObj = null) {
     // 2. Also cross-reference with <world_info> in assembled prompt
     const { lore } = extractContextSections(promptObj, fallbackData);
     if (lore) {
-        const regex = /^#\s+([^\n]+)\n([\s\S]*?)(?=(?:^#\s+[^\n]+)|\s*$)/gm;
-        let match;
-        let pIndex = 0;
-        while ((match = regex.exec(lore)) !== null) {
-            const title = match[1].trim();
-            const content = match[2].trim();
-            const hash = computeHash(content);
+        const norm = lore.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+        let rawSections = [];
+        if (/^#\s+[^\n]+/m.test(norm)) {
+            rawSections = norm.split(/\n(?=#\s+[^\n]+)/);
+        } else if (/^#{2,4}\s+[^\n]+/m.test(norm)) {
+            rawSections = norm.split(/\n(?=#{2,4}\s+[^\n]+)/);
+        } else {
+            rawSections = norm.split(/\n\n+/);
+        }
 
-            const existing = entries.find(e => e.title.toLowerCase() === title.toLowerCase());
+        let pIndex = 0;
+        for (const sec of rawSections) {
+            const trimmedSec = sec.trim();
+            if (!trimmedSec) continue;
+
+            let title = 'Untitled';
+            let content = trimmedSec;
+            const m = trimmedSec.match(/^#+\s*([^\n]+)\n?([\s\S]*)$/);
+            if (m) {
+                title = m[1].trim();
+                content = m[2].trim();
+            }
+            if (!content && title) {
+                content = title;
+            }
+
+            // Cross-reference with disk lore index
+            const diskMatch = diskIndex.get(title.toLowerCase());
+            const resolvedBook = diskMatch ? diskMatch.book : 'Active Lore';
+            const resolvedId = diskMatch ? diskMatch.entry_id : pIndex++;
+            const resolvedTitle = diskMatch ? diskMatch.title : title;
+            const finalContent = content || (diskMatch ? diskMatch.content : '');
+            const hash = computeHash(finalContent);
+            const resolvedKeys = diskMatch ? diskMatch.keys : [];
+
+            // Avoid duplicate additions
+            const existing = entries.find(e =>
+                (e.book.toLowerCase() === resolvedBook.toLowerCase() && String(e.entry_id) === String(resolvedId)) ||
+                (e.title.toLowerCase() === resolvedTitle.toLowerCase())
+            );
+
             if (!existing) {
                 entries.push({
-                    book: 'Active Lore',
-                    entry_id: pIndex++,
-                    title,
-                    content,
+                    book: resolvedBook,
+                    entry_id: resolvedId,
+                    title: resolvedTitle,
+                    content: finalContent,
                     hash,
-                    keys: []
+                    keys: resolvedKeys
                 });
+            } else if (!existing.content && finalContent) {
+                existing.content = finalContent;
+                existing.hash = hash;
             }
         }
     }
@@ -868,7 +956,8 @@ async function getContextData() {
             scenario: stateData.scenario,
             group: fullData?.group || stateData.group,
             character: fullData?.character || stateData.character,
-            chatId: stateData.chatId
+            chatId: stateData.chatId,
+            activeLorebooks: fullData?.activeLorebooks || stateData.activeLorebooks || []
         }
     };
 }
