@@ -32,7 +32,7 @@ const MESSAGE_IMAGES_ROOT = 'C:/Petra/Jogos/SillyTavern/data/default-user/user/i
 const WORLDS_DIR = 'C:/Petra/Jogos/SillyTavern/data/default-user/worlds';
 
 function computeHash(content) {
-    if (!content || typeof content !== 'string') return '00000000';
+    if (!content || typeof content !== 'string' || content.trim().length === 0) return '00000000';
     return crypto.createHash('md5').update(content.trim()).digest('hex').slice(0, 8);
 }
 
@@ -1720,4 +1720,21 @@ function main() {
     process.stderr.write('[SillyTavern-MCP] stdio server running.\n');
 }
 
-main();
+export {
+    computeHash,
+    countWords,
+    extractContextSections,
+    getActiveLoreEntries,
+    getChatMessages,
+    handleRequest,
+    handleToolCall,
+    loadContextCache,
+    saveContextCache,
+    getDiskLoreIndex,
+    TOOLS,
+    main
+};
+
+if (process.argv[1] && (path.resolve(process.argv[1]) === path.resolve(__filename))) {
+    main();
+}

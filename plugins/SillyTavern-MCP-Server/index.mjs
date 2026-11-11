@@ -255,6 +255,8 @@ async function processBridgeRequest(req, res, pathname, body) {
     res.end(JSON.stringify({ ok: false, error: 'Not found' }));
 }
 
+export { processBridgeRequest };
+
 /**
  * Initialize Plugin: setup loopback server and Express router
  * @param {Router} router
