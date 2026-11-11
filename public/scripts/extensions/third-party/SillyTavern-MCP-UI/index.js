@@ -246,12 +246,15 @@ async function syncState() {
         };
     } catch (e) {}
 
+    const rawScenario = context.chatMetadata?.scenario || characterData?.scenario || '';
+    const parsedScenario = (typeof context.substituteParams === 'function') ? context.substituteParams(rawScenario) : rawScenario;
+
     const payload = {
         character: characterData,
         group: groupData,
         userName: context.name1 || 'User',
         chatId: context.chatId || null,
-        scenario: context.chatMetadata?.scenario || characterData?.scenario || '',
+        scenario: parsedScenario,
         generationActive: !!context.onlineStatus,
         recentChat,
         allChat,
@@ -338,6 +341,11 @@ async function handleAction(action) {
         let result = null;
 
         switch (type) {
+            case 'substitute_params': {
+                result = typeof context.substituteParams === 'function' ? context.substituteParams(args.text || '') : (args.text || '');
+                break;
+            }
+
             case 'get_full_context': {
                 // Assemble fresh prompt on demand (active lore, system prompt, chat history)
                 const assembled = await requestAssembledPrompt();

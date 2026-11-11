@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { parseWithST } from './st-macro-engine.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,6 +35,15 @@ const WORLDS_DIR = 'C:/Petra/Jogos/SillyTavern/data/default-user/worlds';
 function computeHash(content) {
     if (!content || typeof content !== 'string' || content.trim().length === 0) return '00000000';
     return crypto.createHash('md5').update(content.trim()).digest('hex').slice(0, 8);
+}
+
+function getSTContext(fallbackData = {}) {
+    return {
+        userName: fallbackData?.userName || 'User',
+        charName: fallbackData?.character?.name || fallbackData?.group?.name || 'Character',
+        character: fallbackData?.character || {},
+        variables: fallbackData?.variables || {}
+    };
 }
 
 function countWords(str) {
@@ -151,6 +161,10 @@ function extractContextSections(promptObj, fallbackData = {}) {
         scenario = fallbackData.scenario || fallbackData.character?.scenario || fallbackData.group?.scenario || '';
     }
 
+    const ctx = getSTContext(fallbackData);
+    if (instructions) instructions = parseWithST(instructions, ctx);
+    if (scenario) scenario = parseWithST(scenario, ctx);
+
     return { instructions, lore, scenario };
 }
 
@@ -177,11 +191,12 @@ function getDiskLoreIndex() {
                     const raw = JSON.parse(fs.readFileSync(path.join(WORLDS_DIR, file), 'utf8'));
                     for (const e of Object.values(raw.entries || {})) {
                         if (e.disable) continue;
+                        const parsedContent = parseWithST((e.content || '').trim(), {});
                         const entryData = {
                             book: bookName,
                             entry_id: e.uid,
                             title: (e.comment || '').trim() || 'Untitled',
-                            content: (e.content || '').trim(),
+                            content: parsedContent,
                             keys: Array.isArray(e.key) ? e.key : []
                         };
                         if (entryData.title && entryData.title !== 'Untitled') {
@@ -213,6 +228,7 @@ function getActiveLoreEntries(fallbackData = {}, promptObj = null) {
     const entries = [];
     const seenKeys = new Set();
     const diskIndex = getDiskLoreIndex();
+    const ctx = getSTContext(fallbackData);
 
     // 1. Scan active lorebook JSON files on disk
     if (Array.isArray(activeBooks) && activeBooks.length > 0) {
@@ -225,7 +241,8 @@ function getActiveLoreEntries(fallbackData = {}, promptObj = null) {
                     const rawEntries = Object.values(raw.entries || {});
                     for (const e of rawEntries) {
                         if (e.constant && !e.disable) {
-                            const content = (e.content || '').trim();
+                            const rawContent = (e.content || '').trim();
+                            const content = parseWithST(rawContent, ctx);
                             const hash = computeHash(content);
                             const key = `${book.toLowerCase()}:${e.uid}`;
                             seenKeys.add(key);
@@ -278,7 +295,8 @@ function getActiveLoreEntries(fallbackData = {}, promptObj = null) {
             const resolvedBook = diskMatch ? diskMatch.book : 'Active Lore';
             const resolvedId = diskMatch ? diskMatch.entry_id : pIndex++;
             const resolvedTitle = diskMatch ? diskMatch.title : title;
-            const finalContent = content || (diskMatch ? diskMatch.content : '');
+            const rawContent = content || (diskMatch ? diskMatch.content : '');
+            const finalContent = parseWithST(rawContent, ctx);
             const hash = computeHash(finalContent);
             const resolvedKeys = diskMatch ? diskMatch.keys : [];
 
@@ -348,9 +366,14 @@ async function computeContextDiff(args = {}) {
     const chatId = data.chatId || 'default';
 
     const cacheStore = loadContextCache();
-    if (isReset && cacheStore[chatId]) {
-        delete cacheStore[chatId];
-        saveContextCache(cacheStore);
+    if (isReset) {
+        if (cacheStore[chatId]) {
+            delete cacheStore[chatId];
+            saveContextCache(cacheStore);
+        }
+        if (args?.clear_only) {
+            return `=== CONTEXT CACHE CLEARED [Session: ${chatId}] ===`;
+        }
     }
 
     const { promptObj, fallbackData } = await getContextData();
@@ -1288,12 +1311,13 @@ async function handleToolCall(name, args) {
                         const rawEntries = Object.values(raw.entries || {});
                         const found = rawEntries.find(e => String(e.uid) === String(entryId));
                         if (found) {
+                            const parsedContent = parseWithST((found.content || '').trim(), getSTContext(combinedFallback));
                             entry = {
                                 book,
                                 entry_id: found.uid,
                                 title: found.comment || 'Untitled',
-                                content: found.content || '',
-                                hash: computeHash(found.content),
+                                content: parsedContent,
+                                hash: computeHash(parsedContent),
                                 keys: Array.isArray(found.key) ? found.key : []
                             };
                         }
@@ -1370,12 +1394,13 @@ async function handleToolCall(name, args) {
                     if (!entry && diskEntries) {
                         const found = diskEntries.find(e => String(e.uid) === String(uid));
                         if (found) {
+                            const parsedContent = parseWithST((found.content || '').trim(), getSTContext(combinedFallback));
                             entry = {
                                 book,
                                 entry_id: found.uid,
                                 title: found.comment || 'Untitled',
-                                content: found.content || '',
-                                hash: computeHash(found.content),
+                                content: parsedContent,
+                                hash: computeHash(parsedContent),
                                 keys: Array.isArray(found.key) ? found.key : []
                             };
                         }
