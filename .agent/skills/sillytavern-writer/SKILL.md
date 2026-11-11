@@ -16,10 +16,15 @@ The assistant acts as an expert creative novelist and scene co-writer, reading t
 1. **Zero Direct File Inspection for Context:**
    - **Never search through SillyTavern's files on disk** (e.g., chat logs, lorebooks, settings, or server files) to extract context, lore, or chat state.
    - The **only exception** for reading disk files is inspecting binary image files (`.webp`, `.png`, `.jpg`) via `read_file` **solely when image analysis has been explicitly requested by the user**.
-2. **MCP Exclusivity:**
+2. **MCP Exclusivity & Context Diff Focus:**
    - Rely solely on the provided MCP endpoints (`call_mcp_tool` under `sillytavern`).
+   - **`get_context_diff` is the mandatory primary context method.** Do **not** call `get_current_context` during writing turns (it is redundant and risks context contamination).
    - Do not attempt shell `curl` or `fetch` commands as workarounds.
-3. **Fail-Fast & Stop on Errors:**
+3. **No Swipe Contamination:**
+   - When writing a swipe (`/swipes-add`), the message being replaced/swiped **must NOT contaminate the context**. Never read or parrot the text of the message being swiped. Base the alternative swipe strictly on the state prior to that message.
+4. **Writing Instructions Integrity:**
+   - Baseline writing guidelines reside strictly here in `SKILL.md`. Never query or dump writing instructions dynamically unless the user explicitly asks to inspect custom instructions configured inside SillyTavern.
+5. **Fail-Fast & Stop on Errors:**
    - If any MCP endpoint presents errors, is offline, or returns empty/no content, **stop the activity immediately and warn the user**. Do not attempt to bypass or guess.
 
 ---
@@ -85,13 +90,13 @@ All SillyTavern context retrieval and posting tools return clean, structured tex
 
 | Tool | Purpose | Primary Use Case |
 | :--- | :--- | :--- |
-| `get_full_context` | Retrieves the complete assembled scene context (Writing Instructions, Active Lore, Scenario) formatted in clear sections, excluding chat history. | Comprehensive scene preparation on the very first turn of a new session. |
+| `get_full_context` | Retrieves the assembled scene context (Active Lore, Scenario) formatted in clear sections, excluding writing instructions and chat history. | Optional reference for active lore and scenario on a cold start. |
 | `get_current_lore` | Retrieves only the active World Info / Lorebook entries (blue / constant mode) for the active scene. | Quick grounding across all active lore entries at once. |
 | `get_chat_scenario` | Retrieves only the active Scenario section for the current chat, prefixed with `[Scenario Hash: ...]`. | Checking scene setup or overarching plot scenario when its hash changes. |
 | `get_writing_instructions` | Retrieves only the system writing instructions and style guidelines from SillyTavern. | Confirming custom instructions configured directly in ST if updated by the user. |
 | `get_chat_history` | Fetches chat messages in clean structured text (without image filenames). Supports `limit` (default: 30) and `since_id` (fetches only messages after `since_id`). | Initial chat loading or fetching delta messages (`since_id`). |
 | `get_chat_history_for_swipe` | Fetches chat messages **excluding the very last message** (without image filenames). | Preparing context for writing an alternative swipe (`/swipes-add`) across all messages before the last. |
-| `get_current_context` | Retrieves chat ID, group name, container character, scenario hash, active lore titles with hashes, and latest message preview. | Fast status check of the active chat. |
+| `get_current_context` | Retrieves high-level session metadata (chat ID, group name, container character, scenario hash, active lore titles) without message text. | **Do NOT call during routine writing turns.** Use `get_context_diff` instead. |
 | `execute_slash_command` | Executes any SillyTavern slash command directly. | Executing `/sendas`, `/swipes-add`, or `/message-edit`. |
 | `post_character_message` | Helper wrapper around the core commands. | Convenient tool call supporting `swipe: true` (`/swipes-add`) or `append: true` (`/message-edit append=true`). |
 | `post_user_message` | Posts a message attributed to the user in the active chat. | Sending user dialogue or scene triggers. |
@@ -139,29 +144,92 @@ These guidelines represent the baseline standards for scene continuations. Becau
 
 ---
 
-## 7. Step-by-Step Optimized Workflow
+## 7. Step-by-Step Optimized Workflow & Action Paths
 
-To maintain complete narrative continuity while consuming the absolute minimum tokens, follow this workflow:
+`get_context_diff` is the **exclusive, mandatory entry point** for every turn. Do not query `get_current_context`, `get_full_context`, or full chat histories on regular turns.
 
-### A. Turn 1 (Session Start / Cold Initialization)
+---
+
+### Phase 1: Context Synchronization
+
+#### Turn 1 (Session Start / Cold Initialization)
 1. **One-Shot Baseline Fetch:**
    - Call `get_context_diff(full: true)`.
-   - This single call establishes the persistent server baseline for the active chat and returns the complete starting context (scenario, active lore, and recent chat history).
-   - Retain these details in working memory for the session.
+   - This single call sets the server baseline for the active chat and returns the complete starting scene context (scenario, active lore, and recent chat history).
+   - Retain these details in working memory for the duration of the session.
 
-### B. Subsequent Turns (Server-Side Delta ~15–45 Tokens)
-Do **not** re-query `get_full_context` or the entire chat history. Instead:
+#### Subsequent Turns (Delta Check ~15–45 Tokens)
 1. **Call `get_context_diff()`:**
-   - **If Status is `In sync (0 changes detected)`:** No changes occurred in lore, scenario, or chat. Proceed directly to drafting!
+   - **If Status is `In sync (0 changes detected)`:** No changes in scenario, lore, or chat. Proceed directly to the requested action path below.
    - **If Changes are Detected:**
-     - Review the reported delta (modified scenario, modified/new lore, or new/edited messages).
-     - If you passed `include_content: true`, the changed text is already embedded in the response.
+     - Review the delta (modified scenario, modified/new lore, or new/edited messages).
+     - If you passed `include_content: true`, the changed text is already embedded.
      - Otherwise, fetch only the specific changed items via `get_message(message_id)` or `get_lore_entry(book, entry_id)` / `get_lore_entries`.
-2. **Appending / Continuing:**
-   - If the user asks to continue or append to the last message (`/message-edit append=true`), you can call `get_last_message` for immediate tail context with minimal tokens.
-3. **Review Visuals (Only Upon Request):**
-   - If—and only if—the user has requested visual/image analysis, query `get_message_images(message_id=...)` to retrieve the disk paths, then inspect any new distinct attached images with `read_file`.
-4. **Draft & Post:**
-   - Standard continuation: `/sendas name=Storyteller <Narrative Text>` (or `post_character_message(text=...)`)
-   - Alternative swipe: `/swipes-add <Narrative Text>` (or `post_character_message(text=..., swipe=true)`)
-   - Continue existing message: `/message-edit append=true <Narrative Text>` (or `post_character_message(text=..., append=true)`)
+2. **Visual Analysis (Only Upon Request):**
+   - If—and only if—the user explicitly requested visual analysis, call `get_message_images(message_id=...)` to retrieve disk paths, then inspect new images via `read_file`.
+
+---
+
+### Phase 2: Action Paths
+
+Depending on the user's creative directive, follow the exact path for that action:
+
+#### Path 1: New Message (`/sendas`)
+Use when advancing the story with a brand-new narrative entry.
+
+```mermaid
+flowchart TD
+    A["User Request: New Scene / Continuation"] --> B["Call get_context_diff()"]
+    B --> C{"Changes Detected?"}
+    C -- "Yes" --> D["Incorporate reported delta into working memory"]
+    C -- "No (In sync)" --> E["Proceed with existing context"]
+    D --> F["Draft scene continuation (Third-person, past tense, ~600 words)"]
+    E --> F
+    F --> G["Execute: /sendas name=Storyteller <Narrative Text>"]
+```
+
+1. **Ground Context:** Take all messages up to the current last message.
+2. **Draft Continuation:** Write in third-person omniscient, past tense (~600 words) advancing characters, sensory details, and narrative momentum.
+3. **Post:** Call `execute_slash_command("/sendas name=Storyteller <Narrative Text>")` (or `post_character_message(text=...)`).
+
+---
+
+#### Path 2: New Swipe (`/swipes-add`) — Alternative Version
+Use when the user requests an alternative variation, branch, or take for the current/last message.
+
+> [!CRITICAL]
+> **Anti-Contamination Mandate:**
+> - The message being swiped **must NOT contaminate the new swipe**.
+> - **DO NOT read, parrot, or rephrase the text of the message being swiped.**
+> - Ground the scene strictly on the state and dialogue **before the last message** (message `N-1`).
+> - Do **not** call `get_last_message` or `get_current_context`.
+
+```mermaid
+flowchart TD
+    A["User Request: Alternative Swipe (/swipes-add)"] --> B["Call get_context_diff()"]
+    B --> C["Identify prior context before the latest message (N-1)"]
+    C --> D["CRITICAL: Disregard and exclude the latest message text"]
+    D --> E["Draft fresh alternative take from prior state (N-1)"]
+    E --> F["Execute: /swipes-add <Alternative Text>"]
+```
+
+1. **Isolate Context:** Base the continuation purely on messages prior to the latest message. If prior messages need to be refreshed, use `get_chat_history_for_swipe`.
+2. **Draft Alternative:** Write a fresh, distinct take or alternative angle on how the scene unfolds from the prior beat.
+3. **Post:** Call `execute_slash_command("/swipes-add <Alternative Text>")` (or `post_character_message(text=..., swipe=true)`).
+
+---
+
+#### Path 3: Continue / Append (`/message-edit append=true`)
+Use when the user instructs to continue the ongoing thought or append directly to the end of the last message.
+
+```mermaid
+flowchart TD
+    A["User Request: Continue / Append to Last Message"] --> B["Call get_context_diff()"]
+    B --> C["Call get_last_message (Inspect tail sentence only)"]
+    C --> D["Draft direct text extension (Seamless transition, no recap)"]
+    D --> E["Execute: /message-edit append=true <Extension Text>"]
+```
+
+1. **Inspect Tail Sentence Only:** Call `get_last_message` solely to check the final sentence/words so the continuation connects seamlessly.
+2. **Draft Extension:** Write the continuation text without summarizing or repeating what came before. Start immediately from the trailing action or thought.
+3. **Post:** Call `execute_slash_command("/message-edit append=true <Extension Text>")` (or `post_character_message(text=..., append=true)`).

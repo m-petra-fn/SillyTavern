@@ -99,13 +99,13 @@ All tools return clean, structured plain text formatted for natural agent reason
 
 | Tool | Type | Description |
 | :--- | :--- | :--- |
-| `get_full_context` | Context | Retrieves the complete assembled scene context (Writing Instructions, Active Lorebook entries, Scenario) excluding chat history. |
+| `get_full_context` | Context | Retrieves the assembled scene context (Active Lorebook entries, Scenario) excluding writing instructions and chat history. |
 | `get_current_lore` | Context | Retrieves only the active World Info / Lorebook entries (blue / constant mode) for the active scene. |
 | `get_chat_scenario` | Context | Retrieves only the active Scenario section for the current chat, prefixed with `[Scenario Hash: ...]`. |
 | `get_writing_instructions` | Context | Retrieves only the system writing instructions and style guidelines. |
 | `get_chat_history` | History | Fetches chat messages with sender names, swipe info, timestamps, and message text (without image filenames). Supports `limit` (default: 30) and `since_id` (returns only messages logged after the given ID for delta fetching). |
 | `get_chat_history_for_swipe` | History | Fetches chat messages **excluding the very last message**, designed specifically for drafting alternative swipes (`/swipes-add`). |
-| `get_current_context` | Context | High-level status check: returns chat ID, group name, container character, scenario hash, active lore titles with hashes, and latest message preview. |
+| `get_current_context` | Context | High-level session metadata check: returns chat ID, group name, container character, scenario hash, and active lore titles (without message text). For turn-by-turn writing, prefer get_context_diff. |
 
 ### Chat Action & Utility Tools
 

@@ -624,7 +624,7 @@ const TOOLS = [
     },
     {
         name: 'get_full_context',
-        description: 'Get all scene context sections (Writing Instructions, Active Lore, and Scenario) combined in clean structured text format without roles and without chat history.',
+        description: 'Get assembled scene context (Active Lore and Scenario) in clean structured text format without writing instructions and without chat history.',
         inputSchema: {
             type: 'object',
             properties: {}
@@ -656,7 +656,7 @@ const TOOLS = [
     },
     {
         name: 'get_current_context',
-        description: 'Get a structured summary of the active session: group name, container character, user name, chat ID, scenario hash, lore hash, active lore titles, and last message preview (without image filenames).',
+        description: 'Get a metadata summary of the active session: group name, container character, user name, chat ID, scenario hash, and active lore titles (without message text). For turn-by-turn writing, prefer get_context_diff.',
         inputSchema: {
             type: 'object',
             properties: {}
@@ -972,11 +972,8 @@ async function handleToolCall(name, args) {
 
         case 'get_full_context': {
             const { promptObj, fallbackData } = await getContextData();
-            const { instructions, lore, scenario } = extractContextSections(promptObj, fallbackData);
+            const { lore, scenario } = extractContextSections(promptObj, fallbackData);
             const sections = [];
-            if (instructions) {
-                sections.push(`=== SECTION: WRITING INSTRUCTIONS ===\n${instructions}`);
-            }
             if (lore) {
                 sections.push(`=== SECTION: ACTIVE LORE ===\n${lore}`);
             }
@@ -1358,9 +1355,7 @@ async function handleToolCall(name, args) {
                 const last = msgs[msgs.length - 1];
                 const role = last.is_user ? 'User' : (last.is_system ? 'System' : last.name);
                 const swipeInfo = (last.swipes > 1) ? ` (Swipe ${last.swipe_id + 1}/${last.swipes})` : '';
-                out += `=== LATEST MESSAGE PREVIEW ===\n`;
-                out += `[${role}]${swipeInfo} (Hash: ${last.hash})\n`;
-                out += `Text:\n${last.message || ''}`;
+                out += `Latest Message: [#${last.id}] [${role}]${swipeInfo} (Hash: ${last.hash}, Words: ${last.words})\n`;
             }
 
             return { content: [{ type: 'text', text: out }] };
