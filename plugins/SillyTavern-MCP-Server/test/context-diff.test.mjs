@@ -20,8 +20,13 @@ describe('Context Diff State Machine & Content Verification', () => {
         saveContextCache({});
     });
 
-    it('establishes complete baseline on Turn 1 (full=true) with full lore content and valid non-zero hashes', async () => {
-        const res = await handleToolCall('get_context_diff', { full: true, reset: true });
+    it('omits hashes by default on get_context_diff and includes them when include_hashes=true', async () => {
+        const defaultRes = await handleToolCall('get_context_diff', { full: true, reset: true });
+        const defaultText = defaultRes.content[0].text;
+        assert.ok(!defaultText.includes('Scenario Hash:'), 'Default output must omit Scenario Hash');
+        assert.ok(!/\(Hash:\s*[0-9a-f]+\)/.test(defaultText), 'Default output must omit entry/message hashes');
+
+        const res = await handleToolCall('get_context_diff', { full: true, reset: true, include_hashes: true });
         assert.ok(res.content && res.content[0]);
         const text = res.content[0].text;
 
@@ -187,5 +192,67 @@ describe('Context Diff State Machine & Content Verification', () => {
         assert.ok(!text.includes('{{//'), 'Must parse and strip inline comments');
         assert.ok(!text.includes('{{char}}'), 'Must replace {{char}} with actual character name');
         assert.ok(!text.includes('{{user}}'), 'Must replace {{user}} with actual user name');
+    });
+
+    it('omits the last message from output and baseline when swipe=true', async () => {
+        // First get normal full baseline to know total messages
+        const fullRes = await handleToolCall('get_context_diff', { full: true, reset: true });
+        const fullText = fullRes.content[0].text;
+        const totalMatch = fullText.match(/Total Messages:\s*(\d+)/);
+        assert.ok(totalMatch, 'Must report Total Messages');
+        const totalMsgs = Number(totalMatch[1]);
+        assert.ok(totalMsgs >= 1, 'Test fixture must have at least 1 message');
+
+        // Now call with full=true, swipe=true
+        const swipeRes = await handleToolCall('get_context_diff', { full: true, reset: true, swipe: true });
+        const swipeText = swipeRes.content[0].text;
+        const swipeTotalMatch = swipeText.match(/Total Messages:\s*(\d+)/);
+        assert.ok(swipeTotalMatch);
+        assert.equal(Number(swipeTotalMatch[1]), totalMsgs - 1, 'swipe=true must omit the last message');
+        assert.ok(!swipeText.includes(`[Message #${totalMsgs - 1}]`), 'Last message must not appear in swipe=true output');
+
+        // Subsequent non-swipe diff should detect the last message as New
+        const nextRes = await handleToolCall('get_context_diff', { include_content: true, swipe: false });
+        const nextText = nextRes.content[0].text;
+        assert.ok(nextText.includes(`[#${totalMsgs - 1}]`), 'Subsequent swipe=false call must report the omitted message as new');
+    });
+
+    it('supports inclusive start_id and end_id range filtering on get_chat_history', async () => {
+        const res = await handleToolCall('get_chat_history', { start_id: 0, end_id: 0 });
+        const text = res.content[0].text;
+        assert.ok(text.includes('[Message #0]'), 'Range 0..0 must include Message #0');
+        assert.ok(!text.includes('[Message #1]'), 'Range 0..0 must not include Message #1');
+    });
+
+    it('omits hashes by default on granular endpoints and includes them when include_hashes=true', async () => {
+        const msgDefault = (await handleToolCall('get_message', { message_id: 0 })).content[0].text;
+        assert.ok(!msgDefault.includes('Hash:'), 'get_message must omit Hash by default');
+        const msgHashed = (await handleToolCall('get_message', { message_id: 0, include_hashes: true })).content[0].text;
+        assert.ok(msgHashed.includes('Hash:'), 'get_message must include Hash when include_hashes=true');
+
+        const scenDefault = (await handleToolCall('get_chat_scenario', {})).content[0].text;
+        assert.ok(!scenDefault.includes('Scenario Hash:'), 'get_chat_scenario must omit hash by default');
+        const scenHashed = (await handleToolCall('get_chat_scenario', { include_hashes: true })).content[0].text;
+        assert.ok(scenHashed.includes('[Scenario Hash:'), 'get_chat_scenario must include hash when include_hashes=true');
+
+        const loreDefault = (await handleToolCall('list_active_lore', {})).content[0].text;
+        assert.ok(!loreDefault.includes('Hash:'), 'list_active_lore must omit Hash by default');
+        const loreHashed = (await handleToolCall('list_active_lore', { include_hashes: true })).content[0].text;
+        assert.ok(loreHashed.includes('Hash:'), 'list_active_lore must include Hash when include_hashes=true');
+
+        const overviewDefault = (await handleToolCall('get_chat_overview', {})).content[0].text;
+        assert.ok(!overviewDefault.includes('Hash:'), 'get_chat_overview must omit Hash by default');
+        const overviewHashed = (await handleToolCall('get_chat_overview', { include_hashes: true })).content[0].text;
+        assert.ok(overviewHashed.includes('Scenario Hash:') && overviewHashed.includes('Hash:'), 'get_chat_overview must include hashes when include_hashes=true');
+
+        const lastDefault = (await handleToolCall('get_last_message', {})).content[0].text;
+        assert.ok(!lastDefault.includes('Hash:'), 'get_last_message must omit Hash by default');
+        const lastHashed = (await handleToolCall('get_last_message', { include_hashes: true })).content[0].text;
+        assert.ok(lastHashed.includes('Hash:'), 'get_last_message must include Hash when include_hashes=true');
+
+        const ctxDefault = (await handleToolCall('get_current_context', {})).content[0].text;
+        assert.ok(!ctxDefault.includes('Hash:'), 'get_current_context must omit Hash by default');
+        const ctxHashed = (await handleToolCall('get_current_context', { include_hashes: true })).content[0].text;
+        assert.ok(ctxHashed.includes('Scenario Hash:'), 'get_current_context must include hashes when include_hashes=true');
     });
 });

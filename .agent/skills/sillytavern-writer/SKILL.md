@@ -7,7 +7,7 @@ description: Master novel-style co-writer workflow paired with SillyTavern via M
 
 This skill defines the autonomous co-writer workflow paired with **SillyTavern (ST)** through the **MCP Bridge**.
 
-The assistant acts as an expert creative novelist and scene co-writer, reading the fully parsed prompt context (active lore, world info, scenario, instructions, attached illustrations, and full chat history) and posting story continuations directly to SillyTavern.
+The assistant acts as an expert creative novelist and scene co-writer, reading the fully parsed prompt context (active lore, world info, scenario, attached illustrations, and chat history) and posting story continuations directly to SillyTavern.
 
 ---
 
@@ -16,14 +16,16 @@ The assistant acts as an expert creative novelist and scene co-writer, reading t
 1. **Zero Direct File Inspection for Context:**
    - **Never search through SillyTavern's files on disk** (e.g., chat logs, lorebooks, settings, or server files) to extract context, lore, or chat state.
    - The **only exception** for reading disk files is inspecting binary image files (`.webp`, `.png`, `.jpg`) via `read_file` **solely when image analysis has been explicitly requested by the user**.
-2. **MCP Exclusivity & Context Diff Focus:**
+2. **MCP Exclusivity & `get_context_diff` Focus:**
    - Rely solely on the provided MCP endpoints (`call_mcp_tool` under `sillytavern`).
-   - **`get_context_diff` is the mandatory primary context method.** Do **not** call `get_current_context` during writing turns (it is redundant and risks context contamination).
+   - **`get_context_diff` is the mandatory primary context method** for every turn. Let the MCP backend handle all context and delta tracking automatically.
    - Do not attempt shell `curl` or `fetch` commands as workarounds.
-3. **No Swipe Contamination:**
-   - When writing a swipe (`/swipes-add`), the message being replaced/swiped **must NOT contaminate the context**. Never read or parrot the text of the message being swiped. Base the alternative swipe strictly on the state prior to that message.
+3. **No Swipe Contamination (`swipe: true` / `false`):**
+   - When writing a swipe (`/swipes-add`), the message being replaced/swiped **must NOT contaminate the context**.
+   - **Always pass `swipe: true` to `get_context_diff`** when generating a swipe (including on Turn 1 if the session begins with a swipe request) so the backend automatically omits the current/last message.
+   - **Always pass `swipe: false`** when generating a new message or continuation.
 4. **Writing Instructions Integrity:**
-   - Baseline writing guidelines reside strictly here in `SKILL.md`. Never query or dump writing instructions dynamically unless the user explicitly asks to inspect custom instructions configured inside SillyTavern.
+   - Baseline writing guidelines reside strictly here in `SKILL.md`.
 5. **Fail-Fast & Stop on Errors:**
    - If any MCP endpoint presents errors, is offline, or returns empty/no content, **stop the activity immediately and warn the user**. Do not attempt to bypass or guess.
 
@@ -41,7 +43,7 @@ This workflow uses a flexible, multi-character group setup:
 
 ## 3. The 3 Core Story Posting Commands
 
-All narrative additions to SillyTavern are handled using three primary slash commands via `execute_slash_command` (or the `post_character_message` helper):
+All narrative additions to SillyTavern are handled using three primary slash commands via `execute_slash_command` (or the `post_character_message` helper). Every posting call returns the **0-indexed Message ID (`#ID`)** of the message you just wrote or updated:
 
 ### 1. New Message
 Posts a new narrative entry to the chat log:
@@ -62,7 +64,7 @@ Appends text to the end of the current/last message:
 /message-edit append=true <Continuation text>
 ```
 
-> **Helper Shortcut:** `post_character_message` can also be used directly:
+> **Helper Shortcut:** `post_character_message` can also be used directly and returns the resulting `Message ID`:
 > - Pass `text` to send a new message as `Storyteller`.
 > - Pass `swipe: true` to invoke `/swipes-add`.
 > - Pass `append: true` to invoke `/message-edit append=true`.
@@ -73,33 +75,16 @@ Appends text to the end of the current/last message:
 
 All SillyTavern context retrieval and posting tools return clean, structured text sections without token-heavy JSON or artificial role wrappers:
 
-### Granular & Token-Optimized Retrieval Tools (Preferred)
-
 | Tool | Purpose | Primary Use Case |
 | :--- | :--- | :--- |
-| `get_context_diff` | Intelligent server-side context controller. Tracks baseline state per `chatId` and returns only what changed (scenario, active lore, or new/edited messages) in ~15–45 tokens. | **Primary turn-by-turn verification.** Call `full: true` on Turn 1 of a new session, and `get_context_diff(include_content: true)` on subsequent turns. |
-| `get_chat_overview` | Returns lightweight metadata for all chat messages (~80–150 tokens): session ID, scenario hash, total count, per-message hashes, word counts, swipe counts, and image counts. | Inspecting full message indices if needed. |
-| `get_message` | Granularly fetches the full text, sender name, and swipe info for a single message by `message_id` (without image filenames). | Retrieving only a specific edited or requested message. |
-| `get_last_message` | Granularly fetches solely the latest message in the active chat (without image filenames). | Quick context check before appending (`/message-edit append=true`) or inspecting the latest prompt. |
-| `list_active_lore` | Lists all active lorebooks and constant entries with `book`, `entry_id`, `title`, and content `hash` (~50–80 tokens). | Fast inspection of active world lore to detect changes or additions. |
-| `get_lore_entry` | Granularly fetches a single lore entry by its `book` and `entry_id`. | Loading or updating a single character or world entry when its hash changes. |
-| `get_lore_entries` | Batch-retrieves multiple lore entries across one or more lorebooks in a single call (e.g. `[{book: 'setting', uids: [1, 3]}, {book: 'cast', uids: [2]}]`). | Fetching entire sets of lore entries at once with zero roundtrips. |
+| `get_context_diff` | Intelligent server-side context controller. Tracks baseline state per session and returns only what changed (scenario, active lore, or new/edited messages). Supports `full`, `include_content`, `swipe`, and `reset`. | **Primary turn-by-turn context call.** Pass `full: true` on Turn 1, and `include_content: true` on subsequent turns. Always set `swipe: true` for swipes or `swipe: false` for new messages/continuations. |
+| `get_message` | Fetches the full text, sender name, and swipe info for a single message by its 0-indexed `message_id` (without image filenames). | Retrieving a specific message by ID when needed. |
+| `get_chat_history` | Fetches chat messages in clean structured text (without image filenames). Supports `start_id` and `end_id` for inclusive ID ranges, `since_id` for delta queries, and `limit` (default: 30, max: 100). | Retrieving a specific range of past messages (e.g., `start_id: 5, end_id: 12`) if you need to revisit earlier scenes. |
 | `get_message_images` | Lists attached image filenames, labels, and local disk paths for messages in the active chat. | Inspecting illustrations and attachments **only when visual analysis is explicitly requested**. |
-
-### Full Context & History Tools
-
-| Tool | Purpose | Primary Use Case |
-| :--- | :--- | :--- |
-| `get_full_context` | Retrieves the assembled scene context (Active Lore, Scenario) formatted in clear sections, excluding writing instructions and chat history. | Optional reference for active lore and scenario on a cold start. |
-| `get_current_lore` | Retrieves only the active World Info / Lorebook entries (blue / constant mode) for the active scene. | Quick grounding across all active lore entries at once. |
-| `get_chat_scenario` | Retrieves only the active Scenario section for the current chat, prefixed with `[Scenario Hash: ...]`. | Checking scene setup or overarching plot scenario when its hash changes. |
-| `get_writing_instructions` | Retrieves only the system writing instructions and style guidelines from SillyTavern. | Confirming custom instructions configured directly in ST if updated by the user. |
-| `get_chat_history` | Fetches chat messages in clean structured text (without image filenames). Supports `limit` (default: 30) and `since_id` (fetches only messages after `since_id`). | Initial chat loading or fetching delta messages (`since_id`). |
-| `get_chat_history_for_swipe` | Fetches chat messages **excluding the very last message** (without image filenames). | Preparing context for writing an alternative swipe (`/swipes-add`) across all messages before the last. |
-| `get_current_context` | Retrieves high-level session metadata (chat ID, group name, container character, scenario hash, active lore titles) without message text. | **Do NOT call during routine writing turns.** Use `get_context_diff` instead. |
-| `execute_slash_command` | Executes any SillyTavern slash command directly. | Executing `/sendas`, `/swipes-add`, or `/message-edit`. |
-| `post_character_message` | Helper wrapper around the core commands. | Convenient tool call supporting `swipe: true` (`/swipes-add`) or `append: true` (`/message-edit append=true`). |
-| `post_user_message` | Posts a message attributed to the user in the active chat. | Sending user dialogue or scene triggers. |
+| `execute_slash_command` | Executes any SillyTavern slash command directly and returns the current `Message ID`. | Executing `/sendas`, `/swipes-add`, or `/message-edit`. |
+| `post_character_message` | Helper wrapper around the core commands that returns the resulting `Message ID`. | Convenient tool call supporting `swipe: true` (`/swipes-add`) or `append: true` (`/message-edit append=true`). |
+| `post_user_message` | Posts a message attributed to the user in the active chat and returns its `Message ID`. | Sending user dialogue or scene triggers. |
+| `post_system_message` | Injects a system narrator note into the active chat and returns its `Message ID`. | Adding out-of-character or narrator system notes. |
 
 ---
 
@@ -111,8 +96,7 @@ SillyTavern messages often contain attached illustrations (avatars, action shots
 
 > [!IMPORTANT]
 > **Token Optimization for Images:**
-> - To preserve context tokens, chat history and message endpoints (`get_chat_history`, `get_message`, `get_last_message`, `get_chat_overview`) **never include image filenames or disk paths**.
-> - The presence of attachments is indicated compactly in `get_chat_overview` via `Images: <count>`.
+> - To preserve context tokens, context and message retrieval endpoints **never include image filenames or disk paths**.
 > - **Only query images when explicitly requested:** Call `get_message_images(message_id=...)` to retrieve the filenames and local disk paths for specific messages only when visual inspection is required by the user.
 > - When visual analysis is requested, inspect the image file via `read_file` using the provided path.
 > - **Deduplication / Caching:** If image filenames are repeated across different messages (such as recurring character portrait slots or reused environmental plates), do **not** re-inspect them if they have already been viewed and analyzed earlier in the conversation.
@@ -122,7 +106,7 @@ SillyTavern messages often contain attached illustrations (avatars, action shots
 
 ## 6. Writing & Formatting Guidelines
 
-These guidelines represent the baseline standards for scene continuations. Because they are codified directly here in `SKILL.md`, **there is no need to query `get_writing_instructions` on every turn**. Only query `get_writing_instructions` if the user explicitly mentions having added new or modified writing instructions directly within SillyTavern.
+These guidelines represent the baseline standards for scene continuations.
 
 ### Core Baseline Conventions
 - **Perspective & Tense:** Third-person omniscient, past tense.
@@ -146,25 +130,29 @@ These guidelines represent the baseline standards for scene continuations. Becau
 
 ## 7. Step-by-Step Optimized Workflow & Action Paths
 
-`get_context_diff` is the **exclusive, mandatory entry point** for every turn. Do not query `get_current_context`, `get_full_context`, or full chat histories on regular turns.
+`get_context_diff` is the **exclusive, mandatory entry point** for every turn.
 
 ---
 
 ### Phase 1: Context Synchronization
 
 #### Turn 1 (Session Start / Cold Initialization)
-1. **One-Shot Baseline Fetch:**
-   - Call `get_context_diff(full: true)`.
-   - This single call sets the server baseline for the active chat and returns the complete starting scene context (scenario, active lore, and recent chat history).
+1. **Determine `swipe` Mode:**
+   - Set `swipe: true` if the user's opening request is to write an alternative swipe on the current last message.
+   - Set `swipe: false` if the user wants a new message or continuation.
+2. **One-Shot Baseline Fetch:**
+   - Call `get_context_diff(full: true, swipe: <true|false>)`.
+   - This single call sets the server baseline for the active chat and returns the complete starting scene context (scenario, active lore, and chat history — automatically omitting the last message when `swipe: true`).
    - Retain these details in working memory for the duration of the session.
 
 #### Subsequent Turns (Single-Call Delta Verification)
-1. **Call `get_context_diff(include_content: true)`:**
-   - **If Status is `In sync (0 changes detected)`:** No changes in scenario, lore, or chat (~15 tokens). Proceed directly to the requested action path below.
-   - **If Changes are Detected:**
-     - Any modified scenario, modified/new lore, or new/edited messages are already fully included in the diff output with their complete content. No secondary queries or tool calls are needed.
-     - Review the reported changes and proceed directly to the requested action path below.
-2. **Visual Analysis (Only Upon Request):**
+1. **Call `get_context_diff(include_content: true, swipe: <true|false>)`:**
+   - Pass `swipe: true` if generating a swipe, or `swipe: false` otherwise.
+   - **If Status is `In sync (0 changes detected)`:** No changes in scenario, lore, or chat. Proceed directly to the requested action path below.
+   - **If Changes are Detected:** Any modified scenario, modified/new lore, or new/edited messages are already fully included in the diff output with their complete content.
+2. **Targeted History Lookup (Only When Needed):**
+   - If you ever need to re-read an older message or range of messages not in working memory, call `get_message(message_id=...)` or `get_chat_history(start_id=..., end_id=...)`.
+3. **Visual Analysis (Only Upon Request):**
    - If—and only if—the user explicitly requested visual analysis, call `get_message_images(message_id=...)` to retrieve disk paths, then inspect new images via `read_file`.
 
 ---
@@ -178,18 +166,18 @@ Use when advancing the story with a brand-new narrative entry.
 
 ```mermaid
 flowchart TD
-    A["User Request: New Scene / Continuation"] --> B["Call get_context_diff(include_content: true)"]
+    A["User Request: New Scene / Continuation"] --> B["Call get_context_diff(include_content: true, swipe: false) or full: true on Turn 1"]
     B --> C{"Changes Detected?"}
     C -- "Yes" --> D["Incorporate reported delta into working memory"]
     C -- "No (In sync)" --> E["Proceed with existing context"]
     D --> F["Draft scene continuation (Third-person, past tense, ~600 words)"]
     E --> F
-    F --> G["Execute: /sendas name=Storyteller <Narrative Text>"]
+    F --> G["Post via /sendas or post_character_message (returns Message ID)"]
 ```
 
-1. **Ground Context:** Take all messages up to the current last message.
+1. **Ground Context:** Use `get_context_diff` with `swipe: false` (plus `full: true` on Turn 1).
 2. **Draft Continuation:** Write in third-person omniscient, past tense (~600 words) advancing characters, sensory details, and narrative momentum.
-3. **Post:** Call `execute_slash_command("/sendas name=Storyteller <Narrative Text>")` (or `post_character_message(text=...)`).
+3. **Post:** Call `execute_slash_command("/sendas name=Storyteller <Narrative Text>")` or `post_character_message(text=...)`. Note the returned `Message ID` (`#ID`).
 
 ---
 
@@ -198,23 +186,20 @@ Use when the user requests an alternative variation, branch, or take for the cur
 
 > [!CRITICAL]
 > **Anti-Contamination Mandate:**
-> - The message being swiped **must NOT contaminate the new swipe**.
-> - **DO NOT read, parrot, or rephrase the text of the message being swiped.**
-> - Ground the scene strictly on the state and dialogue **before the last message** (message `N-1`).
-> - Do **not** call `get_last_message` or `get_current_context`.
+> - Always pass `swipe: true` to `get_context_diff` so the backend omits the current/last message automatically.
+> - Base the alternative swipe strictly on the context returned before the swiped message.
 
 ```mermaid
 flowchart TD
-    A["User Request: Alternative Swipe (/swipes-add)"] --> B["Call get_context_diff(include_content: true)"]
-    B --> C["Identify prior context before the latest message (N-1)"]
-    C --> D["CRITICAL: Disregard and exclude the latest message text"]
-    D --> E["Draft fresh alternative take from prior state (N-1)"]
-    E --> F["Execute: /swipes-add <Alternative Text>"]
+    A["User Request: Alternative Swipe (/swipes-add)"] --> B["Call get_context_diff(include_content: true, swipe: true) or full: true, swipe: true on Turn 1"]
+    B --> C["Backend automatically omits the last message"]
+    C --> D["Draft fresh alternative take from prior state"]
+    D --> E["Post via /swipes-add or post_character_message(swipe: true) (returns Message ID)"]
 ```
 
-1. **Isolate Context:** Base the continuation purely on messages prior to the latest message. If prior messages need to be refreshed, use `get_chat_history_for_swipe`.
+1. **Isolate Context:** Call `get_context_diff` with `swipe: true` (plus `full: true` on Turn 1).
 2. **Draft Alternative:** Write a fresh, distinct take or alternative angle on how the scene unfolds from the prior beat.
-3. **Post:** Call `execute_slash_command("/swipes-add <Alternative Text>")` (or `post_character_message(text=..., swipe=true)`).
+3. **Post:** Call `execute_slash_command("/swipes-add <Alternative Text>")` or `post_character_message(text=..., swipe=true)`. Note the returned `Message ID` (`#ID`).
 
 ---
 
@@ -223,17 +208,17 @@ Use when the user instructs to continue the ongoing thought or append directly t
 
 ```mermaid
 flowchart TD
-    A["User Request: Continue / Append to Last Message"] --> B["Call get_context_diff(include_content: true)"]
-    B --> C["Call get_last_message (Inspect tail sentence only)"]
+    A["User Request: Continue / Append to Last Message"] --> B["Call get_context_diff(include_content: true, swipe: false) or full: true on Turn 1"]
+    B --> C["Read tail sentence of latest message (or call get_message if needed)"]
     C --> D["Draft direct text extension (Seamless transition, no recap)"]
-    D --> E["Execute: /message-edit append=true <Extension Text>"]
+    D --> E["Post via /message-edit append=true or post_character_message(append: true) (returns Message ID)"]
 ```
 
-1. **Inspect Tail Sentence Only:** Call `get_last_message` solely to check the final sentence/words so the continuation connects seamlessly.
+1. **Inspect Tail Sentence:** Review the latest message from `get_context_diff` (or `get_message(message_id=...)` if you need to re-read a specific ID) to check the final sentence/words.
 2. **Draft Extension:** Write the continuation text without summarizing or repeating what came before. Start immediately from the trailing action or thought.
-3. **Post:** Call `execute_slash_command("/message-edit append=true <Extension Text>")` (or `post_character_message(text=..., append=true)`).
+3. **Post:** Call `execute_slash_command("/message-edit append=true <Extension Text>")` or `post_character_message(text=..., append=true)`. Note the returned `Message ID` (`#ID`).
 
 ---
 
 ### Phase 3: Completion & Clean Output
-After posting the message to SillyTavern, **only reply in the chat window with a brief confirmation that the task has been completed** (e.g., *"Continuation posted to SillyTavern."*). Do **not** re-print the full story text or scene continuation in the assistant chat interface, keeping the chat clean and free of duplicate text.
+After posting the message to SillyTavern, **only reply in the chat window with a brief confirmation that the task has been completed** (e.g., *"Continuation posted to SillyTavern (Message #4)."*). Do **not** re-print the full story text or scene continuation in the assistant chat interface, keeping the chat clean and free of duplicate text.

@@ -377,24 +377,31 @@ async function handleAction(action) {
                     // Add as a new alternative swipe using /swipes-add
                     const cmd = `/swipes-add ${args.text}`;
                     const output = await context.executeSlashCommandsWithOptions(cmd);
+                    const messageId = Array.isArray(context.chat) && context.chat.length > 0 ? context.chat.length - 1 : null;
                     result = {
                         message: 'Added new swipe via /swipes-add',
+                        messageId,
                         output: output?.pipe ?? 'OK'
                     };
                 } else if (args.append === true) {
                     // Continue/append to last message using /message-edit append=true
                     const cmd = `/message-edit append=true ${args.text}`;
                     const output = await context.executeSlashCommandsWithOptions(cmd);
+                    const messageId = Array.isArray(context.chat) && context.chat.length > 0 ? context.chat.length - 1 : null;
                     result = {
                         message: 'Appended text to last message via /message-edit',
+                        messageId,
                         output: output?.pipe ?? 'OK'
                     };
                 } else {
                     // Post new message using /sendas
                     const cmd = `/sendas name="${charName}" ${args.text}`;
                     const output = await context.executeSlashCommandsWithOptions(cmd);
+                    const parsedPipe = output?.pipe !== undefined && output?.pipe !== '' && !isNaN(Number(output.pipe)) ? Number(output.pipe) : null;
+                    const messageId = parsedPipe ?? (Array.isArray(context.chat) && context.chat.length > 0 ? context.chat.length - 1 : null);
                     result = {
                         message: `Posted message via /sendas name="${charName}"`,
+                        messageId,
                         output: output?.pipe ?? 'OK'
                     };
                 }
@@ -446,7 +453,7 @@ async function handleAction(action) {
                 await context.saveChat();
                 context.addOneMessage(mes);
 
-                result = { message: `System note posted`, text: args.text };
+                result = { message: `System note posted`, messageId: context.chat.length - 1, text: args.text };
                 break;
             }
 
@@ -459,10 +466,12 @@ async function handleAction(action) {
             case 'execute_slash_command': {
                 if (typeof context.executeSlashCommandsWithOptions === 'function') {
                     const output = await context.executeSlashCommandsWithOptions(args.command);
-                    result = { output: output?.pipe ?? 'Command executed' };
+                    const messageId = Array.isArray(context.chat) && context.chat.length > 0 ? context.chat.length - 1 : null;
+                    result = { output: output?.pipe ?? 'Command executed', messageId };
                 } else if (typeof context.executeSlashCommands === 'function') {
                     const output = await context.executeSlashCommands(args.command);
-                    result = { output: output?.pipe ?? 'Command executed' };
+                    const messageId = Array.isArray(context.chat) && context.chat.length > 0 ? context.chat.length - 1 : null;
+                    result = { output: output?.pipe ?? 'Command executed', messageId };
                 } else {
                     throw new Error('Slash command executor not available in this SillyTavern version');
                 }

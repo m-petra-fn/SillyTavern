@@ -360,6 +360,8 @@ async function computeContextDiff(args = {}) {
     const isFull = !!args?.full;
     const isReset = !!args?.reset;
     const includeContent = !!args?.include_content;
+    const isSwipe = !!args?.swipe;
+    const includeHashes = !!args?.include_hashes;
 
     const stateRes = await fetchState().catch(() => ({}));
     const data = stateRes?.data || {};
@@ -382,7 +384,8 @@ async function computeContextDiff(args = {}) {
 
     const currentScenarioHash = computeHash(scenario);
     const currentLoreEntries = getActiveLoreEntries(combinedFallback, promptObj);
-    const currentMessages = getChatMessages(data);
+    const allMessages = getChatMessages(data);
+    const currentMessages = (isSwipe && allMessages.length > 0) ? allMessages.slice(0, -1) : allMessages;
 
     const cached = cacheStore[chatId];
     const isFirstTime = !cached;
@@ -426,7 +429,9 @@ async function computeContextDiff(args = {}) {
 
         if (isFull) {
             let fullOut = `=== BASELINE CONTEXT [Session: ${chatId}] ===\n`;
-            fullOut += `Scenario Hash: ${currentScenarioHash}\n`;
+            if (includeHashes) {
+                fullOut += `Scenario Hash: ${currentScenarioHash}\n`;
+            }
             fullOut += `Total Messages: ${currentMessages.length}\n`;
             fullOut += `Active Lore Entries: ${currentLoreEntries.length}\n\n`;
 
@@ -437,7 +442,8 @@ async function computeContextDiff(args = {}) {
             if (currentLoreEntries.length > 0) {
                 fullOut += `=== SECTION: ACTIVE LORE ===\n`;
                 fullOut += currentLoreEntries.map(e => {
-                    let block = `[${e.book}] #${e.entry_id} - ${e.title} (Hash: ${e.hash})`;
+                    const hashSuffix = includeHashes ? ` (Hash: ${e.hash})` : '';
+                    let block = `[${e.book}] #${e.entry_id} - ${e.title}${hashSuffix}`;
                     if (includeContent || isFull) {
                         block += `\n${e.content}`;
                     }
@@ -450,7 +456,8 @@ async function computeContextDiff(args = {}) {
                 fullOut += currentMessages.map(m => {
                     const role = m.is_user ? 'User' : (m.is_system ? 'System' : m.name);
                     const swipeInfo = (m.swipes > 1) ? ` (Swipe ${m.swipe_id + 1}/${m.swipes})` : '';
-                    let block = `[Message #${m.id}] [${role}]${swipeInfo} (Hash: ${m.hash}, Words: ${m.words})`;
+                    const hashPrefix = includeHashes ? `Hash: ${m.hash}, ` : '';
+                    let block = `[Message #${m.id}] [${role}]${swipeInfo} (${hashPrefix}Words: ${m.words})`;
                     if (includeContent || isFull) {
                         block += `\nText:\n${m.message}`;
                     }
@@ -462,7 +469,12 @@ async function computeContextDiff(args = {}) {
         }
 
         if (isFirstTime) {
-            return `=== CONTEXT BASELINE ESTABLISHED [Session: ${chatId}] ===\nScenario Hash: ${currentScenarioHash}\nTotal Messages: ${currentMessages.length}\nActive Lore Entries: ${currentLoreEntries.length}\nStatus: Initial baseline saved. Future calls will return only deltas.`;
+            let firstOut = `=== CONTEXT BASELINE ESTABLISHED [Session: ${chatId}] ===\n`;
+            if (includeHashes) {
+                firstOut += `Scenario Hash: ${currentScenarioHash}\n`;
+            }
+            firstOut += `Total Messages: ${currentMessages.length}\nActive Lore Entries: ${currentLoreEntries.length}\nStatus: Initial baseline saved. Future calls will return only deltas.`;
+            return firstOut;
         }
     }
 
@@ -544,7 +556,7 @@ async function computeContextDiff(args = {}) {
     let diffOut = `=== CONTEXT DIFF [Session: ${chatId}] ===\n`;
 
     if (changes.scenarioChanged) {
-        diffOut += `\n[Scenario]: Modified (Hash: ${currentScenarioHash})`;
+        diffOut += `\n[Scenario]: Modified${includeHashes ? ` (Hash: ${currentScenarioHash})` : ''}`;
         if (includeContent) {
             diffOut += `\nContent:\n${scenario}\n`;
         }
@@ -554,14 +566,14 @@ async function computeContextDiff(args = {}) {
         diffOut += `\n[Active Lore]:`;
         if (changes.loreModified.length > 0) {
             diffOut += `\n  - Modified (${changes.loreModified.length}):\n` + changes.loreModified.map(e => {
-                let s = `    * [${e.book}] #${e.entry_id} "${e.title}" (Hash: ${e.hash})`;
+                let s = `    * [${e.book}] #${e.entry_id} "${e.title}"${includeHashes ? ` (Hash: ${e.hash})` : ''}`;
                 if (includeContent) s += `\n      Content: ${e.content}`;
                 return s;
             }).join('\n');
         }
         if (changes.loreNew.length > 0) {
             diffOut += `\n  - New (${changes.loreNew.length}):\n` + changes.loreNew.map(e => {
-                let s = `    * [${e.book}] #${e.entry_id} "${e.title}" (Hash: ${e.hash})`;
+                let s = `    * [${e.book}] #${e.entry_id} "${e.title}"${includeHashes ? ` (Hash: ${e.hash})` : ''}`;
                 if (includeContent) s += `\n      Content: ${e.content}`;
                 return s;
             }).join('\n');
@@ -582,7 +594,8 @@ async function computeContextDiff(args = {}) {
         if (changes.messagesEdited.length > 0) {
             diffOut += `\n  - Edited (${changes.messagesEdited.length}):\n` + changes.messagesEdited.map(m => {
                 const role = m.is_user ? 'User' : (m.is_system ? 'System' : m.name);
-                let s = `    * [#${m.id}] [${role}] (Words: ${m.words}, Hash: ${m.hash})`;
+                const hashSuffix = includeHashes ? `, Hash: ${m.hash}` : '';
+                let s = `    * [#${m.id}] [${role}] (Words: ${m.words}${hashSuffix})`;
                 if (includeContent) s += `\n      Text: ${m.message}`;
                 return s;
             }).join('\n');
@@ -590,7 +603,8 @@ async function computeContextDiff(args = {}) {
         if (changes.messagesNew.length > 0) {
             diffOut += `\n  - New (${changes.messagesNew.length}):\n` + changes.messagesNew.map(m => {
                 const role = m.is_user ? 'User' : (m.is_system ? 'System' : m.name);
-                let s = `    * [#${m.id}] [${role}] (Words: ${m.words}, Hash: ${m.hash})`;
+                const hashSuffix = includeHashes ? `, Hash: ${m.hash}` : '';
+                let s = `    * [#${m.id}] [${role}] (Words: ${m.words}${hashSuffix})`;
                 if (includeContent) s += `\n      Text: ${m.message}`;
                 return s;
             }).join('\n');
@@ -606,7 +620,7 @@ async function computeContextDiff(args = {}) {
 const TOOLS = [
     {
         name: 'get_context_diff',
-        description: 'Get a lightweight delta of only what changed (scenario, active lore, or new/edited messages) since the last turn for the active chat. By default returns only IDs and hashes of changes (~15-45 tokens). Pass full=true on Turn 1 of a new agent conversation to establish the baseline.',
+        description: 'Get a delta of only what changed (scenario, active lore, or new/edited messages) since the last turn for the active chat. Pass full=true on Turn 1 of a new agent conversation to establish the baseline, and swipe=true when generating a swipe so the current/last message is omitted.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -620,9 +634,19 @@ const TOOLS = [
                     description: 'If true, embeds the full text of modified lore entries and new messages directly into the diff to avoid extra roundtrips.',
                     default: false
                 },
+                swipe: {
+                    type: 'boolean',
+                    description: 'Set to true when generating a swipe so the current/last message is omitted from the returned context and baseline, preventing swipe contamination (default: false).',
+                    default: false
+                },
                 reset: {
                     type: 'boolean',
                     description: 'If true, forcibly purges the server cache for the active chat.',
+                    default: false
+                },
+                include_hashes: {
+                    type: 'boolean',
+                    description: 'Include content hashes in the text output (default: false).',
                     default: false
                 }
             }
@@ -630,10 +654,12 @@ const TOOLS = [
     },
     {
         name: 'get_chat_overview',
-        description: 'Get a lightweight overview of all messages in the chat (~80-150 tokens) with session ID, scenario hash, total messages, and per-message hashes, word counts, swipe counts, and image counts (without filenames). Use this to detect if earlier messages were edited or new messages added.',
+        description: 'Get a lightweight overview of all messages in the chat (~80-150 tokens) with session ID, total messages, word counts, swipe counts, and image counts (without filenames). Use this to detect if earlier messages were edited or new messages added.',
         inputSchema: {
             type: 'object',
-            properties: {}
+            properties: {
+                include_hashes: { type: 'boolean', description: 'Include content hashes in the text output (default: false).', default: false }
+            }
         }
     },
     {
@@ -645,7 +671,8 @@ const TOOLS = [
                 message_id: {
                     type: 'integer',
                     description: '0-indexed ID of the message to retrieve'
-                }
+                },
+                include_hashes: { type: 'boolean', description: 'Include content hashes in the text output (default: false).', default: false }
             },
             required: ['message_id']
         }
@@ -655,15 +682,19 @@ const TOOLS = [
         description: 'Get solely the latest message in the active chat with full text, sender name, and swipe count (without image filenames). Ideal for continuing/appending text (/message-edit append=true) with zero token bloat.',
         inputSchema: {
             type: 'object',
-            properties: {}
+            properties: {
+                include_hashes: { type: 'boolean', description: 'Include content hashes in the text output (default: false).', default: false }
+            }
         }
     },
     {
         name: 'list_active_lore',
-        description: 'List all currently active lorebooks and their active entries, with lorebook name, entry ID (uid), title, and content hash (~50-120 tokens). Use this to check which lore is active and whether any entry was modified.',
+        description: 'List all currently active lorebooks and their active entries, with lorebook name, entry ID (uid), and title (~50-120 tokens).',
         inputSchema: {
             type: 'object',
-            properties: {}
+            properties: {
+                include_hashes: { type: 'boolean', description: 'Include content hashes in the text output (default: false).', default: false }
+            }
         }
     },
     {
@@ -679,7 +710,8 @@ const TOOLS = [
                 entry_id: {
                     type: 'integer',
                     description: 'Unique entry ID (uid) within the lorebook'
-                }
+                },
+                include_hashes: { type: 'boolean', description: 'Include content hashes in the text output (default: false).', default: false }
             },
             required: ['book', 'entry_id']
         }
@@ -710,7 +742,8 @@ const TOOLS = [
                         },
                         required: ['book', 'uids']
                     }
-                }
+                },
+                include_hashes: { type: 'boolean', description: 'Include content hashes in the text output (default: false).', default: false }
             },
             required: ['entries']
         }
@@ -751,10 +784,12 @@ const TOOLS = [
     },
     {
         name: 'get_chat_scenario',
-        description: 'Get the active Scenario text for the current chat, prefixed with its content hash.',
+        description: 'Get the active Scenario text for the current chat.',
         inputSchema: {
             type: 'object',
-            properties: {}
+            properties: {
+                include_hashes: { type: 'boolean', description: 'Include content hashes in the text output (default: false).', default: false }
+            }
         }
     },
     {
@@ -767,15 +802,17 @@ const TOOLS = [
     },
     {
         name: 'get_current_context',
-        description: 'Get a metadata summary of the active session: group name, container character, user name, chat ID, scenario hash, and active lore titles (without message text). For turn-by-turn writing, prefer get_context_diff.',
+        description: 'Get a metadata summary of the active session: group name, container character, user name, chat ID, and active lore titles (without message text). For turn-by-turn writing, prefer get_context_diff.',
         inputSchema: {
             type: 'object',
-            properties: {}
+            properties: {
+                include_hashes: { type: 'boolean', description: 'Include content hashes in the text output (default: false).', default: false }
+            }
         }
     },
     {
         name: 'get_chat_history',
-        description: 'Get chat messages in clean structured text format with sender name, swipe info, timestamps, and message text (without image filenames; use get_message_images for images). Supports delta queries via since_id.',
+        description: 'Get chat messages in clean structured text format with sender name, swipe info, timestamps, and message text (without image filenames; use get_message_images for images). Supports range queries via start_id/end_id and delta queries via since_id.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -787,6 +824,14 @@ const TOOLS = [
                 since_id: {
                     type: 'integer',
                     description: 'Optional 0-indexed message ID. If specified, returns only messages logged after this ID (delta messages).'
+                },
+                start_id: {
+                    type: 'integer',
+                    description: 'Optional inclusive 0-indexed start message ID for range retrieval.'
+                },
+                end_id: {
+                    type: 'integer',
+                    description: 'Optional inclusive 0-indexed end message ID for range retrieval.'
                 }
             }
         }
@@ -1110,11 +1155,13 @@ async function handleToolCall(name, args) {
         }
 
         case 'get_chat_scenario': {
+            const includeHashes = !!args?.include_hashes;
             const { promptObj, fallbackData } = await getContextData();
             const { scenario } = extractContextSections(promptObj, fallbackData);
             const hash = computeHash(scenario);
+            const prefix = includeHashes ? `[Scenario Hash: ${hash}]\n\n` : '';
             const text = scenario
-                ? `[Scenario Hash: ${hash}]\n\n=== SECTION: SCENARIO ===\n${scenario}`
+                ? `${prefix}=== SECTION: SCENARIO ===\n${scenario}`
                 : 'No active scenario found in current prompt.';
             return { content: [{ type: 'text', text }] };
         }
@@ -1129,6 +1176,7 @@ async function handleToolCall(name, args) {
         }
 
         case 'get_chat_overview': {
+            const includeHashes = !!args?.include_hashes;
             const stateRes = await fetchState().catch(() => ({}));
             const data = stateRes?.data || {};
             const { promptObj, fallbackData } = await getContextData();
@@ -1141,7 +1189,9 @@ async function handleToolCall(name, args) {
             out += `Group: ${data.group?.name || 'None'}\n`;
             out += `Container Character: ${data.character?.name || 'Storyteller'}\n`;
             out += `User Name: ${data.userName || 'User'}\n`;
-            out += `Scenario Hash: ${scenHash} (Words: ${countWords(scenario)})\n`;
+            out += includeHashes
+                ? `Scenario Hash: ${scenHash} (Words: ${countWords(scenario)})\n`
+                : `Scenario Words: ${countWords(scenario)}\n`;
             out += `Total Messages: ${msgs.length}\n\n`;
 
             if (msgs.length === 0) {
@@ -1152,7 +1202,8 @@ async function handleToolCall(name, args) {
                     const role = m.is_user ? 'User' : (m.is_system ? 'System' : m.name);
                     const swipeInfo = (m.swipes > 1) ? `, Swipes: ${m.swipe_id + 1}/${m.swipes}` : '';
                     const imgInfo = (Array.isArray(m.images) && m.images.length > 0) ? `, Images: ${m.images.length}` : '';
-                    return `- [#${m.id}] [${role}] (Words: ${m.words}, Hash: ${m.hash}${swipeInfo}${imgInfo})`;
+                    const hashInfo = includeHashes ? `, Hash: ${m.hash}` : '';
+                    return `- [#${m.id}] [${role}] (Words: ${m.words}${hashInfo}${swipeInfo}${imgInfo})`;
                 }).join('\n');
             }
 
@@ -1160,6 +1211,7 @@ async function handleToolCall(name, args) {
         }
 
         case 'get_message': {
+            const includeHashes = !!args?.include_hashes;
             const msgId = Number(args?.message_id);
             if (isNaN(msgId)) throw new Error('Missing or invalid parameter: message_id');
             const stateRes = await fetchState().catch(() => ({}));
@@ -1178,7 +1230,8 @@ async function handleToolCall(name, args) {
 
             const role = msg.is_user ? 'User' : (msg.is_system ? 'System' : msg.name);
             const swipeInfo = (msg.swipes > 1) ? ` (Swipe ${msg.swipe_id + 1}/${msg.swipes})` : '';
-            let header = `[Message #${msg.id}] [${role}]${swipeInfo} (Hash: ${msg.hash}, Words: ${msg.words})`;
+            const hashPrefix = includeHashes ? `Hash: ${msg.hash}, ` : '';
+            let header = `[Message #${msg.id}] [${role}]${swipeInfo} (${hashPrefix}Words: ${msg.words})`;
             if (msg.send_date) header += `\nDate: ${msg.send_date}`;
 
             return {
@@ -1190,6 +1243,7 @@ async function handleToolCall(name, args) {
         }
 
         case 'get_last_message': {
+            const includeHashes = !!args?.include_hashes;
             const stateRes = await fetchState().catch(() => ({}));
             const data = stateRes?.data || {};
             const msgs = getChatMessages(data);
@@ -1206,7 +1260,8 @@ async function handleToolCall(name, args) {
             const last = msgs[msgs.length - 1];
             const role = last.is_user ? 'User' : (last.is_system ? 'System' : last.name);
             const swipeInfo = (last.swipes > 1) ? ` (Swipe ${last.swipe_id + 1}/${last.swipes})` : '';
-            let header = `[Message #${last.id}] [${role}]${swipeInfo} (Hash: ${last.hash}, Words: ${last.words})`;
+            const hashPrefix = includeHashes ? `Hash: ${last.hash}, ` : '';
+            let header = `[Message #${last.id}] [${role}]${swipeInfo} (${hashPrefix}Words: ${last.words})`;
             if (last.send_date) header += `\nDate: ${last.send_date}`;
 
             return {
@@ -1258,6 +1313,7 @@ async function handleToolCall(name, args) {
         }
 
         case 'list_active_lore': {
+            const includeHashes = !!args?.include_hashes;
             const { promptObj, fallbackData } = await getContextData();
             const stateRes = await fetchState().catch(() => ({}));
             const data = stateRes?.data || {};
@@ -1277,13 +1333,15 @@ async function handleToolCall(name, args) {
             out += loreEntries.map(e => {
                 const words = countWords(e.content);
                 const keysStr = (e.keys && e.keys.length > 0) ? ` | Keys: [${e.keys.slice(0, 5).join(', ')}]` : '';
-                return `- Book: "${e.book}" | ID: ${e.entry_id} | Title: "${e.title}" | Hash: ${e.hash} (Words: ${words})${keysStr}`;
+                const hashStr = includeHashes ? ` | Hash: ${e.hash}` : '';
+                return `- Book: "${e.book}" | ID: ${e.entry_id} | Title: "${e.title}"${hashStr} (Words: ${words})${keysStr}`;
             }).join('\n');
 
             return { content: [{ type: 'text', text: out }] };
         }
 
         case 'get_lore_entry': {
+            const includeHashes = !!args?.include_hashes;
             const book = String(args?.book || '').trim();
             const entryId = args?.entry_id;
             if (!book || entryId === undefined || entryId === null) {
@@ -1335,7 +1393,9 @@ async function handleToolCall(name, args) {
             }
 
             let out = `=== LORE ENTRY: [${entry.book}] #${entry.entry_id} - ${entry.title} ===\n`;
-            out += `Hash: ${entry.hash}\n`;
+            if (includeHashes) {
+                out += `Hash: ${entry.hash}\n`;
+            }
             if (entry.keys && entry.keys.length > 0) {
                 out += `Keys: ${entry.keys.join(', ')}\n`;
             }
@@ -1345,6 +1405,7 @@ async function handleToolCall(name, args) {
         }
 
         case 'get_lore_entries': {
+            const includeHashes = !!args?.include_hashes;
             let reqList = args?.entries;
             if (typeof reqList === 'string') {
                 try { reqList = JSON.parse(reqList); } catch (_) { reqList = null; }
@@ -1427,7 +1488,9 @@ async function handleToolCall(name, args) {
 
             let out = results.map(entry => {
                 let block = `=== LORE ENTRY: [${entry.book}] #${entry.entry_id} - ${entry.title} ===\n`;
-                block += `Hash: ${entry.hash}\n`;
+                if (includeHashes) {
+                    block += `Hash: ${entry.hash}\n`;
+                }
                 if (entry.keys && entry.keys.length > 0) {
                     block += `Keys: ${entry.keys.join(', ')}\n`;
                 }
@@ -1443,6 +1506,7 @@ async function handleToolCall(name, args) {
         }
 
         case 'get_current_context': {
+            const includeHashes = !!args?.include_hashes;
             const { promptObj, fallbackData } = await getContextData();
             const stateRes = await fetchState().catch(() => ({}));
             const data = stateRes?.data || {};
@@ -1457,19 +1521,22 @@ async function handleToolCall(name, args) {
             out += `Group: ${data.group?.name || 'None'}\n`;
             out += `Container Character: ${data.character?.name || 'Storyteller'}\n`;
             out += `User Name: ${data.userName || 'User'}\n`;
-            out += `Scenario Hash: ${scenHash}\n`;
+            if (includeHashes) {
+                out += `Scenario Hash: ${scenHash}\n`;
+            }
             out += `Total Messages: ${msgs.length}\n\n`;
 
             out += '=== ACTIVE LORE ENTRIES ===\n';
             out += (loreEntries.length > 0
-                ? loreEntries.map(e => `- [${e.book}] #${e.entry_id} "${e.title}" (Hash: ${e.hash})`).join('\n')
+                ? loreEntries.map(e => `- [${e.book}] #${e.entry_id} "${e.title}"${includeHashes ? ` (Hash: ${e.hash})` : ''}`).join('\n')
                 : 'No active lore detected.') + '\n\n';
 
             if (msgs.length > 0) {
                 const last = msgs[msgs.length - 1];
                 const role = last.is_user ? 'User' : (last.is_system ? 'System' : last.name);
                 const swipeInfo = (last.swipes > 1) ? ` (Swipe ${last.swipe_id + 1}/${last.swipes})` : '';
-                out += `Latest Message: [#${last.id}] [${role}]${swipeInfo} (Hash: ${last.hash}, Words: ${last.words})\n`;
+                const hashPrefix = includeHashes ? `Hash: ${last.hash}, ` : '';
+                out += `Latest Message: [#${last.id}] [${role}]${swipeInfo} (${hashPrefix}Words: ${last.words})\n`;
             }
 
             return { content: [{ type: 'text', text: out }] };
@@ -1478,13 +1545,22 @@ async function handleToolCall(name, args) {
         case 'get_chat_history': {
             const stateRes = await fetchState().catch(() => ({}));
             const data = stateRes?.data || {};
-            const limit = Math.min(Number(args?.limit) || 30, 100);
-            const sinceId = (args?.since_id !== undefined && args?.since_id !== null) ? Number(args.since_id) : null;
+            const sinceId = (args?.since_id !== undefined && args?.since_id !== null && !isNaN(Number(args.since_id))) ? Number(args.since_id) : null;
+            const startId = (args?.start_id !== undefined && args?.start_id !== null && !isNaN(Number(args.start_id))) ? Number(args.start_id) : null;
+            const endId = (args?.end_id !== undefined && args?.end_id !== null && !isNaN(Number(args.end_id))) ? Number(args.end_id) : null;
+            const hasRange = startId !== null || endId !== null;
+            const limit = Math.min(Number(args?.limit) || (hasRange ? 100 : 30), 100);
 
             let msgs = getChatMessages(data);
 
-            if (sinceId !== null && !isNaN(sinceId)) {
+            if (sinceId !== null) {
                 msgs = msgs.filter(m => m.id > sinceId);
+            }
+            if (startId !== null) {
+                msgs = msgs.filter(m => m.id >= startId);
+            }
+            if (endId !== null) {
+                msgs = msgs.filter(m => m.id <= endId);
             }
 
             const rawMessages = msgs.slice(-limit);
@@ -1495,7 +1571,7 @@ async function handleToolCall(name, args) {
                         type: 'text',
                         text: sinceId !== null
                             ? `No new chat messages found since ID ${sinceId}.`
-                            : 'No chat history found in the active session.'
+                            : (hasRange ? `No chat messages found in requested ID range.` : 'No chat history found in the active session.')
                     }]
                 };
             }
@@ -1551,10 +1627,12 @@ async function handleToolCall(name, args) {
                 swipe: !!args?.swipe,
                 append: !!args?.append
             });
+            const msgId = result?.messageId ?? result?.messageIndex ?? null;
+            const idSuffix = (msgId !== null && msgId !== undefined) ? ` (Message ID: #${msgId})` : '';
             return {
                 content: [{
                     type: 'text',
-                    text: result?.message || `Successfully executed character message action.`
+                    text: `${result?.message || 'Successfully executed character message action.'}${idSuffix}`
                 }]
             };
         }
@@ -1567,10 +1645,12 @@ async function handleToolCall(name, args) {
                 text,
                 trigger_generation: trigger
             });
+            const msgId = result?.messageId ?? result?.messageIndex ?? null;
+            const idSuffix = (msgId !== null && msgId !== undefined) ? ` (Message ID: #${msgId})` : '';
             return {
                 content: [{
                     type: 'text',
-                    text: `Successfully posted user message.${trigger ? ' Character reply generation triggered.' : ''}`
+                    text: `Successfully posted user message.${idSuffix}${trigger ? ' Character reply generation triggered.' : ''}`
                 }]
             };
         }
@@ -1579,10 +1659,12 @@ async function handleToolCall(name, args) {
             const text = String(args?.text || '').trim();
             if (!text) throw new Error('Missing parameter: text');
             const result = await sendAction('post_system_message', { text });
+            const msgId = result?.messageId ?? result?.messageIndex ?? null;
+            const idSuffix = (msgId !== null && msgId !== undefined) ? ` (Message ID: #${msgId})` : '';
             return {
                 content: [{
                     type: 'text',
-                    text: `System note injected: "${text}"`
+                    text: `System note injected${idSuffix}: "${text}"`
                 }]
             };
         }
@@ -1601,10 +1683,12 @@ async function handleToolCall(name, args) {
             const command = String(args?.command || '').trim();
             if (!command) throw new Error('Missing parameter: command');
             const result = await sendAction('execute_slash_command', { command });
+            const msgId = result?.messageId ?? result?.messageIndex ?? null;
+            const idLine = (msgId !== null && msgId !== undefined) ? `\nMessage ID: #${msgId}` : '';
             return {
                 content: [{
                     type: 'text',
-                    text: `Executed slash command: ${command}\nOutput: ${JSON.stringify(result)}`
+                    text: `Executed slash command: ${command}${idLine}\nOutput: ${JSON.stringify(result)}`
                 }]
             };
         }
